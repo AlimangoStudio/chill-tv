@@ -367,10 +367,11 @@ namespace ChillTV
 
         // ---------- --snapshot file.png: open, show sample status, save a picture (for the README), exit ----------
         static string SnapshotPath;
+        static bool SnapshotHome;   // --snapshot file.png home: as connected to Chill TV Home
         void SaveSnapshot()
         {
             Expand();
-            online = true; volume = 9; maxVolume = 15; note = ""; Relayout();
+            online = true; volume = 9; maxVolume = 15; note = ""; homeKind = SnapshotHome; Relayout();
             System.Windows.Forms.Timer t = new System.Windows.Forms.Timer(); t.Interval = 800;
             t.Tick += delegate
             {
@@ -390,7 +391,7 @@ namespace ChillTV
         {
             Application.EnableVisualStyles();
             Settings.Load();
-            if (args.Length == 2 && args[0] == "--snapshot") SnapshotPath = args[1];
+            if (args.Length >= 2 && args[0] == "--snapshot") { SnapshotPath = args[1]; SnapshotHome = args.Length > 2 && args[2] == "home"; }
             Application.Run(new RemoteForm());
         }
     }

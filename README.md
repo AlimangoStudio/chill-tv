@@ -26,7 +26,9 @@ There are two styles, plus a remote for your computer.
 
 **Remote** (Windows; the Mac one looks the same): a small circle that floats on top of your other windows and opens into this remote
 
-<img src="docs/screenshots/windows-remote.png" alt="Chill TV Remote for Windows" width="260">
+<img src="docs/screenshots/windows-remote.png" alt="Chill TV Remote for Windows, connected to Showcase" width="260"> <img src="docs/screenshots/windows-remote-home.png" alt="Chill TV Remote for Windows, connected to Home" width="260">
+
+Left: connected to Showcase. Right: connected to Home, where the Reel, Idle and Music buttons are hidden.
 
 **PC control**: Computer mode puts the TV in a window, so you can type logins with your keyboard and click with your mouse
 
