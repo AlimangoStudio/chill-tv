@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Remote control key. build.ps1 replaces CHANGE-ME with a random key on the first build and prints it. -->
+    <string name="remote_key" translatable="false">CHANGE-ME</string>
+</resources>

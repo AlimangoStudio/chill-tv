@@ -1,6 +1,6 @@
 // Chill TV Remote: a floating dock for the Chill TV Showcase launcher.
 // A 48 px circle that opens into a remote laid out like the Mi Box remote. It talks to the Chill TV Showcase launcher's
-// remote server (port 8765) on your network. Collapsed it does nothing at all: no timers, no network.
+// remote server (port 8765) on your network; works with both Chill TV Home and Showcase. Collapsed it does nothing at all: no timers, no network.
 // Build on the Mac: ./build-mac.sh   (needs only the Xcode Command Line Tools: xcode-select --install)
 import SwiftUI
 import AppKit
@@ -19,7 +19,7 @@ final class Settings: ObservableObject {
 
 // MARK: - Talking to the TV
 
-struct TVStatus: Decodable { let ok: Bool; let volume: Int?; let max: Int?; let muted: Bool?; let music: Bool?; let note: String? }
+struct TVStatus: Decodable { let ok: Bool; let volume: Int?; let max: Int?; let muted: Bool?; let music: Bool?; let note: String?; let kind: String? }
 
 final class TV: ObservableObject {
     @Published var online: Bool? = nil          // nil = not checked yet (collapsed: never checked)
@@ -28,6 +28,7 @@ final class TV: ObservableObject {
     @Published var muted = false
     @Published var music = true
     @Published var note = ""
+    @Published var isHome = false            // Chill TV Home: no reel, idle or music
     let settings: Settings
     init(settings: Settings) { self.settings = settings }
 
@@ -49,6 +50,7 @@ final class TV: ObservableObject {
                 if let m = st?.max { self.maxVolume = Swift.max(1, m) }
                 if let m = st?.muted { self.muted = m }
                 if let m = st?.music { self.music = m }
+                if st?.volume != nil { self.isHome = st?.kind == "home" }
                 if st?.volume == nil && !path.hasPrefix("/api/status") { self.refresh() }
             }
         }.resume()
@@ -158,11 +160,11 @@ struct RemoteView: View {
                 Key(label: "Play") { tv.send("/api/open?app=play") }
             }
             Key(label: tv.computerOn ? "⏹ Stop computer mode" : "🖥 Computer mode (keyboard & mouse)", tint: tv.computerOn ? gold : nil) { tv.computerMode() }
-            HStack(spacing: 6) {
+            if !tv.isHome { HStack(spacing: 6) {
                 Key(label: "▶ Reel") { tv.send("/api/reel") }
                 Key(label: "Idle") { tv.send("/api/showcase") }
                 Key(label: tv.music ? "♪ On" : "♪ Off") { tv.send("/api/music?on=\(tv.music ? 0 : 1)") }
-            }
+            } }
             HStack(spacing: 8) {
                 Key(label: "−") { tv.send("/api/vol?d=down") }.frame(width: 40)
                 GeometryReader { g in

@@ -1,5 +1,5 @@
 // Chill TV Remote for Windows: the same floating remote as the Mac one. A 48 px circle that stays on top and
-// opens into a remote laid out like the TV's own remote. It talks to the Chill TV Showcase launcher's remote
+// opens into a remote laid out like the TV's own remote. It talks to the Chill TV launcher's (Home or Showcase) remote
 // server (port 8765) on your network. Collapsed it does nothing at all: no timers, no network.
 // Settings (TV address and key) are kept for this Windows user only, the key encrypted by Windows (DPAPI).
 // Build: build.cmd (uses the C# compiler that ships with Windows; nothing to install).
@@ -76,6 +76,7 @@ namespace ChillTV
         string note = "";
         int volume = 0, maxVolume = 15;
         bool muted, music = true;
+        bool homeKind;   // connected to Chill TV Home
         Process computer;
         readonly List<Key> keys = new List<Key>();
         Key hot;
@@ -158,10 +159,13 @@ namespace ChillTV
             keys.Add(new Key(new RectangleF(x, y, w, 32), on ? "■  Stop computer mode" : "Computer mode (keyboard & mouse)", on ? (Color?)Gold : null, ComputerMode));
             y += 42;
             float third = (w - 12) / 3;
-            keys.Add(new Key(new RectangleF(x, y, third, 32), "▶ Reel", null, delegate { Send("/api/reel"); }));
-            keys.Add(new Key(new RectangleF(x + third + 6, y, third, 32), "Idle", null, delegate { Send("/api/showcase"); }));
-            keys.Add(new Key(new RectangleF(x + 2 * (third + 6), y, third, 32), music ? "♪ On" : "♪ Off", null, delegate { Send("/api/music?on=" + (music ? "0" : "1")); }));
-            y += 42;
+            if (!homeKind)   // reel, idle and music exist on Chill TV Showcase only
+            {
+                keys.Add(new Key(new RectangleF(x, y, third, 32), "▶ Reel", null, delegate { Send("/api/reel"); }));
+                keys.Add(new Key(new RectangleF(x + third + 6, y, third, 32), "Idle", null, delegate { Send("/api/showcase"); }));
+                keys.Add(new Key(new RectangleF(x + 2 * (third + 6), y, third, 32), music ? "♪ On" : "♪ Off", null, delegate { Send("/api/music?on=" + (music ? "0" : "1")); }));
+                y += 42;
+            }
             keys.Add(new Key(new RectangleF(x, y, 40, 32), "−", null, delegate { Send("/api/vol?d=down"); }));
             volBar = new RectangleF(x + 48, y + 12.5f, w - 48 - 104, 7);
             keys.Add(new Key(new RectangleF(x + w - 96, y, 40, 32), "+", null, delegate { Send("/api/vol?d=up"); }));
@@ -301,7 +305,7 @@ namespace ChillTV
             else
             {
                 online = true; note = "";
-                Match v = Regex.Match(body ?? "", "\"volume\":(\\d+)"); if (v.Success) volume = int.Parse(v.Groups[1].Value);
+                Match v = Regex.Match(body ?? "", "\"volume\":(\\d+)"); if (v.Success) { volume = int.Parse(v.Groups[1].Value); homeKind = body.Contains("\"kind\":\"home\""); }
                 Match mx = Regex.Match(body ?? "", "\"max\":(\\d+)"); if (mx.Success) maxVolume = Math.Max(1, int.Parse(mx.Groups[1].Value));
                 Match m = Regex.Match(body ?? "", "\"muted\":(true|false)"); if (m.Success) muted = m.Groups[1].Value == "true";
                 Match mu = Regex.Match(body ?? "", "\"music\":(true|false)"); if (mu.Success) music = mu.Groups[1].Value == "true";

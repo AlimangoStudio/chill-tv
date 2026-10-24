@@ -10,10 +10,22 @@ if (-not $env:JAVA_HOME) { $env:JAVA_HOME = (Get-ChildItem 'C:\Program Files\Ecl
 $jdk = "$env:JAVA_HOME\bin"
 $out = "$root\build"
 
+# Remote key: kept in remote-key.txt (out of git), made on the first build. The source keeps the CHANGE-ME placeholder.
+$keyFile = "$root\remote-key.txt"
+if (-not (Test-Path $keyFile)) {
+    $new = -join ((48..57) + (65..90) + (97..122) | Get-Random -Count 24 | ForEach-Object { [char]$_ })
+    Set-Content $keyFile $new -Encoding ascii
+    Write-Output "Remote key created in remote-key.txt: $new"
+}
+$remoteKey = (Get-Content $keyFile -Raw).Trim()
+
 if (Test-Path $out) { Remove-Item -Recurse -Force $out }
 New-Item -ItemType Directory -Force "$out\gen", "$out\classes", "$out\dex" | Out-Null
 
-& "$bt\aapt2.exe" compile --dir "$root\app\res" -o "$out\res.zip"
+Copy-Item -Recurse "$root\app\res" "$out\res"
+$rx = "$out\res\values\remote.xml"
+(Get-Content $rx -Raw).Replace('CHANGE-ME', $remoteKey) | Set-Content $rx -NoNewline -Encoding utf8
+& "$bt\aapt2.exe" compile --dir "$out\res" -o "$out\res.zip"
 if ($LASTEXITCODE) { throw 'aapt2 compile failed' }
 & "$bt\aapt2.exe" link -I $jar --manifest "$root\app\AndroidManifest.xml" -A "$root\app\assets" `
     --java "$out\gen" --min-sdk-version 21 --target-sdk-version 31 --version-code 1 --version-name 1.0 `

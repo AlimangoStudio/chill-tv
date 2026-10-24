@@ -102,6 +102,8 @@ public class MainActivity extends Activity {
         web.addJavascriptInterface(new Bridge(), "TV");
         setContentView(web);
         web.loadUrl("file:///android_asset/index.html");
+        RemoteHooks.current = this;
+        RemoteServer.ensureStarted(this);
         web.requestFocus(View.FOCUS_DOWN);
         takeVoiceExtra(getIntent());
         AlarmScheduler.schedule(this);
@@ -250,6 +252,8 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        RemoteHooks.current = this;
+        RemoteHooks.resumed = true;
         web.onResume();
         web.resumeTimers();
         js("window.onHome && window.onHome()");
@@ -262,6 +266,7 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onPause() {
+        RemoteHooks.resumed = false;
         stopVoice();
         web.onPause();
         web.pauseTimers();
@@ -315,6 +320,11 @@ public class MainActivity extends Activity {
             return true;
         }
         return super.dispatchKeyEvent(e);
+    }
+
+    /** A D-pad press from the remote control, handled exactly like the TV remote's. */
+    void remoteKey(String dir) {
+        js("window.onKey && window.onKey('" + dir + "')");
     }
 
     /** Runs page script on the UI thread (speech callbacks arrive on binder threads and would be dropped). */

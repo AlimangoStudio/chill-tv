@@ -52,8 +52,18 @@ public class VolumeHudService extends AccessibilityService {
     };
     private boolean registered;
 
+    /** The connected service, so the remote control's Back button can use it. */
+    private static volatile VolumeHudService instance;
+
+    /** Presses Back in whatever app is open (the remote's Back button). */
+    static boolean back() {
+        VolumeHudService s = instance;
+        return s != null && s.performGlobalAction(GLOBAL_ACTION_BACK);
+    }
+
     @Override
     protected void onServiceConnected() {
+        instance = this;
         wm = (WindowManager) getSystemService(Context.WINDOW_SERVICE);
         audio = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
         hud = new HudView(this);
@@ -65,6 +75,7 @@ public class VolumeHudService extends AccessibilityService {
 
     @Override
     public void onDestroy() {
+        instance = null;
         if (registered) {
             unregisterReceiver(volumeReceiver);
             registered = false;

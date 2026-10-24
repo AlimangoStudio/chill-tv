@@ -8,7 +8,8 @@ There are two styles, plus a remote for your computer.
 | For | A family TV | A shop, salon, office or waiting room |
 | Home screen | Greeting with your home's name, weather, clock, app dock, top picks | Your ads in a big centre card, app dock, clock |
 | When idle | Clock screensaver with an alarm | Full-screen slides about your business |
-| Extras | Voice assistant with a name you choose ("Max, open Netflix"), alarm that wakes the TV, two themes | Quiet classical background music, a reel of your videos, remote control from a Mac or PC |
+| Extras | Voice assistant with a name you choose ("Max, open Netflix"), alarm that wakes the TV, two themes | Quiet classical background music, a reel of your videos |
+| Remote | Mac, Windows and browser remote, with keyboard-and-mouse Computer mode | The same, plus Reel, Idle and Music buttons |
 | You set | Home name, assistant name, location (all in Settings on the TV) | Business name, tagline, website, slides, ads, music, reels, location (in `config.js`) |
 
 ## Screenshots
@@ -65,10 +66,10 @@ Edit [`showcase/app/assets/config.js`](showcase/app/assets/config.js), put your 
 - **reels**: vertical videos for the reel screen. With no reels, the reel tile is hidden.
 - **music**: six calm classical pieces are included (credits below). Add your own, or remove them.
 
-## The remote (Showcase only)
+## The remote (Home and Showcase)
 
-The Showcase app runs a small remote server on the TV (port 8765). Every request needs a secret key.
-- **The key**: the first build makes a random key and saves it in `showcase/remote-key.txt`. The key in the source stays `CHANGE-ME`. A TV built with that placeholder refuses every remote request.
+Both apps run a small remote server on the TV (port 8765). Every request needs a secret key.
+- **The key**: the first build makes a random key and saves it in `remote-key.txt` (in `home/` or `showcase/`). The key in the source stays `CHANGE-ME`. A TV built with that placeholder refuses every remote request.
 - **Browser**: open `http://<TV-IP>:8765/?k=<key>` on any phone or computer for a simple remote page.
 - **Windows**: run `remote\windows\build.cmd`. It uses the C# compiler built into Windows, so there's nothing to install. Run `ChillRemote.exe`, then enter the TV address and key. The key is stored encrypted for your Windows user only.
 - **Mac**: run `bash remote/mac/build-mac.sh` (macOS 12 or newer, Xcode Command Line Tools).
@@ -80,7 +81,7 @@ The Showcase app runs a small remote server on the TV (port 8765). Every request
 
 The remote is plain HTTP, so keep it on your own network or a private VPN such as Tailscale. Don't expose port 8765 to the internet.
 
-The Home version has no remote server. Use the TV's own remote and the voice assistant.
+Connected to a Home TV, the remote hides the Showcase-only buttons (Reel, Idle, Music). The remote's Back button uses the Home app's volume-bar accessibility service, so switch that on once in the TV's Settings → Accessibility. On Showcase it's the "Chill TV remote (Back button)" service.
 
 ## Credits and licences
 
