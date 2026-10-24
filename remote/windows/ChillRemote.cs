@@ -1,6 +1,8 @@
 // Chill TV Remote for Windows: the same floating remote as the Mac one. A 48 px circle that stays on top and
 // opens into a remote laid out like the TV's own remote. It talks to the Chill TV launcher's (Home or Showcase) remote
-// server (port 8765) on your network. Collapsed it does nothing at all: no timers, no network.
+// server (port 8765) on your network. Collapsed it does nothing at all (no timers, no network) unless Voice is on.
+// Voice: the PC's microphone and Windows' own offline speech recognizer. Say "TV" then a command ("TV, open
+// Netflix", "TV, pause", "TV, volume up"); speech never leaves this PC, only the command goes to the TV.
 // Settings (TV address and key) are kept for this Windows user only, the key encrypted by Windows (DPAPI).
 // Build: build.cmd (uses the C# compiler that ships with Windows; nothing to install).
 using System;
@@ -11,7 +13,9 @@ using System.Drawing.Drawing2D;
 using System.Drawing.Text;
 using System.IO;
 using System.Net;
+using System.Globalization;
 using System.Security.Cryptography;
+using System.Speech.Recognition;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -26,6 +30,7 @@ namespace ChillTV
         public static string Host = "";
         public static string Key = "";
         public static int X = -1, Y = -1;
+        public static bool Voice;
         public static bool Configured { get { return Host.Length > 0 && Key.Length > 0; } }
 
         public static void Load()
@@ -38,6 +43,7 @@ namespace ChillTV
                 Host = p[0].Trim();
                 Key = p.Length > 1 ? p[1].Trim() : "";
                 if (p.Length > 3) { int.TryParse(p[2], out X); int.TryParse(p[3], out Y); }
+                Voice = p.Length > 4 && p[4].Trim() == "voice";
             }
             catch { Host = ""; Key = ""; }
         }
@@ -47,7 +53,7 @@ namespace ChillTV
             try
             {
                 Directory.CreateDirectory(Dir);
-                byte[] raw = Encoding.UTF8.GetBytes(Host + "\n" + Key + "\n" + X + "\n" + Y);
+                byte[] raw = Encoding.UTF8.GetBytes(Host + "\n" + Key + "\n" + X + "\n" + Y + "\n" + (Voice ? "voice" : ""));
                 File.WriteAllBytes(FilePath, ProtectedData.Protect(raw, null, DataProtectionScope.CurrentUser));
             }
             catch { }
@@ -83,6 +89,141 @@ namespace ChillTV
         Point down; bool dragged;
         RectangleF volBar;
         int panelH = 560;
+        SpeechRecognitionEngine ear;   // set only while Voice is on
+
+        // ---------- voice: "TV" + one of these, mapped to the same calls the keys make ----------
+        static readonly string[] Wake = { "tv", "chill tv", "hey tv" };
+        static Dictionary<string, string> VoiceCommands()
+        {
+            Dictionary<string, string> c = new Dictionary<string, string>();
+            Action<string, string[]> add = delegate (string path, string[] phrases) { foreach (string p in phrases) c[p] = path; };
+            add("/api/open?app=nf", new[] { "open netflix", "netflix" });
+            add("/api/open?app=prime", new[] { "open prime video", "open prime", "prime video" });
+            add("/api/open?app=hbo", new[] { "open hbo max", "open hbo", "open max", "hbo max" });
+            add("/api/open?app=dis", new[] { "open disney plus", "open disney", "disney plus" });
+            add("/api/open?app=play", new[] { "open google play", "open play store", "open the play store" });
+            add("/api/home", new[] { "home", "go home" });
+            add("/api/key?code=back", new[] { "back", "go back" });
+            add("/api/apps", new[] { "apps", "all apps", "show apps" });
+            add("/api/media?c=playpause", new[] { "pause", "play", "resume" });
+            add("/api/media?c=ff", new[] { "fast forward", "forward", "skip ahead" });
+            add("/api/media?c=rew", new[] { "rewind", "go back ten seconds" });
+            add("/api/media?c=next", new[] { "next", "next episode" });
+            add("/api/media?c=prev", new[] { "previous" });
+            add("/api/vol?d=up", new[] { "volume up", "louder", "turn it up" });
+            add("/api/vol?d=down", new[] { "volume down", "quieter", "softer", "turn it down" });
+            add("/api/vol?d=mute", new[] { "mute", "unmute" });
+            add("/api/key?code=up", new[] { "up" });
+            add("/api/key?code=down", new[] { "down" });
+            add("/api/key?code=left", new[] { "left" });
+            add("/api/key?code=right", new[] { "right" });
+            add("/api/key?code=ok", new[] { "ok", "okay", "select", "enter" });
+            add("/api/reel", new[] { "reel", "show reel", "clinic reel" });
+            add("/api/showcase", new[] { "idle", "showcase" });
+            add("/api/music?on=1", new[] { "music on" });
+            add("/api/music?on=0", new[] { "music off" });
+            add("voice-off", new[] { "stop listening" });
+            return c;
+        }
+        readonly Dictionary<string, string> commands = VoiceCommands();
+
+        void ToggleVoice()
+        {
+            if (ear != null) { StopVoice(); Settings.Voice = false; Settings.Save(); note = "Voice off."; Relayout(); return; }
+            if (!Settings.Configured) { AskSettings(); return; }
+            string err = StartVoice();
+            Settings.Voice = err == null; Settings.Save();
+            note = err ?? "Listening. Say \"TV\" and a command: \"TV, open Netflix\", \"TV, pause\", \"TV, volume up\".";
+            Relayout();
+        }
+
+        // The recognizer listens only for "TV" followed by a known command, so other talk in the room is ignored.
+        static SpeechRecognitionEngine NewEar(IEnumerable<string> phrases)
+        {
+            RecognizerInfo info = null;
+            foreach (RecognizerInfo r in SpeechRecognitionEngine.InstalledRecognizers())
+                if (info == null || r.Culture.Name == "en-US") info = r;
+            if (info == null) return null;
+            SpeechRecognitionEngine e = new SpeechRecognitionEngine(info);
+            GrammarBuilder g = new GrammarBuilder { Culture = info.Culture };
+            g.Append(new Choices(Wake));
+            g.Append(new Choices(new List<string>(phrases).ToArray()));
+            e.LoadGrammar(new Grammar(g));
+            return e;
+        }
+
+        // What a recognized phrase does: the TV call, "voice-off", or null when it is not a command.
+        static string PathFor(Dictionary<string, string> commands, string text)
+        {
+            text = text.ToLowerInvariant();
+            foreach (string w in Wake) if (text.StartsWith(w + " ")) { text = text.Substring(w.Length + 1); break; }
+            string path;
+            return commands.TryGetValue(text, out path) ? path : null;
+        }
+
+        string StartVoice()
+        {
+            try
+            {
+                SpeechRecognitionEngine e = NewEar(commands.Keys);
+                if (e == null) return "No speech recognizer on this PC: add English speech in Windows Settings > Time & language > Speech.";
+                e.SetInputToDefaultAudioDevice();
+                e.SpeechRecognized += delegate (object s, SpeechRecognizedEventArgs a)
+                {
+                    if (a.Result.Confidence < MinConfidence) return;
+                    string text = a.Result.Text;
+                    try { BeginInvoke((MethodInvoker)delegate { Heard(text); }); } catch { }
+                };
+                e.RecognizeAsync(RecognizeMode.Multiple);
+                ear = e;
+                Invalidate();
+                return null;
+            }
+            catch (InvalidOperationException) { return "No microphone found: plug one in or allow the microphone in Windows privacy settings."; }
+            catch (Exception ex) { return "Voice could not start: " + ex.Message; }
+        }
+
+        void StopVoice()
+        {
+            SpeechRecognitionEngine e = ear; ear = null;
+            if (e != null) { try { e.RecognizeAsyncCancel(); e.Dispose(); } catch { } }
+            Invalidate();
+        }
+
+        const float MinConfidence = 0.6f;
+
+        void Heard(string text)
+        {
+            string path = PathFor(commands, text);
+            if (path == null) return;
+            if (path == "voice-off") { ToggleVoice(); return; }
+            note = "Heard: \"" + text + "\"";
+            Send(path);
+        }
+
+        // ---------- --voice-test in.wav out.txt: recognize a recording, write what it would send, exit ----------
+        static void VoiceTest(string wav, string outFile)
+        {
+            Dictionary<string, string> c = VoiceCommands();
+            StringBuilder sb = new StringBuilder();
+            using (SpeechRecognitionEngine e = NewEar(c.Keys))
+            {
+                if (e == null) { File.WriteAllText(outFile, "no recognizer\n"); return; }
+                e.SetInputToWaveFile(wav);
+                ManualResetEvent done = new ManualResetEvent(false);
+                // the same continuous mode the live remote uses, so a sentence that is not a command doesn't end it
+                e.SpeechRecognized += delegate (object s, SpeechRecognizedEventArgs a)
+                {
+                    RecognitionResult r = a.Result;
+                    lock (sb) sb.AppendLine(r.Text + "\t" + r.Confidence.ToString("0.00", CultureInfo.InvariantCulture) + "\t"
+                        + (r.Confidence < MinConfidence ? "(ignored: low confidence)" : PathFor(c, r.Text) ?? "(not a command)"));
+                };
+                e.RecognizeCompleted += delegate { done.Set(); };
+                e.RecognizeAsync(RecognizeMode.Multiple);
+                done.WaitOne(TimeSpan.FromMinutes(2));
+            }
+            File.WriteAllText(outFile, sb.ToString());
+        }
 
         public RemoteForm()
         {
@@ -99,7 +240,12 @@ namespace ChillTV
             Collapse();
             Deactivate += delegate { if (expanded && SnapshotPath == null) Collapse(); };
             if (SnapshotPath != null) Shown += delegate { SaveSnapshot(); };
-            else Shown += delegate { if (!Settings.Configured) AskSettings(); };
+            else Shown += delegate
+            {
+                if (!Settings.Configured) AskSettings();
+                else if (Settings.Voice) { string err = StartVoice(); if (err != null) note = err; }
+            };
+            FormClosed += delegate { StopVoice(); };
         }
 
         // ---------- circle <-> remote ----------
@@ -158,6 +304,8 @@ namespace ChillTV
             bool on = computer != null && !computer.HasExited;
             keys.Add(new Key(new RectangleF(x, y, w, 32), on ? "■  Stop computer mode" : "Computer mode (keyboard & mouse)", on ? (Color?)Gold : null, ComputerMode));
             y += 42;
+            keys.Add(new Key(new RectangleF(x, y, w, 32), ear != null ? "◉  Listening: say \"TV …\"" : "◉  Voice (laptop mic)", ear != null ? (Color?)Gold : null, ToggleVoice));
+            y += 42;
             float third = (w - 12) / 3;
             if (!homeKind)   // reel, idle and music exist on Chill TV Showcase only
             {
@@ -202,7 +350,8 @@ namespace ChillTV
             g.Clear(PanelBG);
             if (!expanded)
             {
-                using (Pen ring = new Pen(online == false ? Color.FromArgb(224, 87, 79) : Teal, 3)) g.DrawEllipse(ring, 3.5f, 3.5f, Dot - 7, Dot - 7);
+                // gold ring: Voice is listening, even folded up
+                using (Pen ring = new Pen(online == false ? Color.FromArgb(224, 87, 79) : ear != null ? Gold : Teal, 3)) g.DrawEllipse(ring, 3.5f, 3.5f, Dot - 7, Dot - 7);
                 using (Font f = new Font("Georgia", 15f, FontStyle.Bold)) using (Brush b = new SolidBrush(Gold)) g.DrawString("C", f, b, new RectangleF(0, 1, Dot, Dot), mid);
                 return;
             }
@@ -390,6 +539,7 @@ namespace ChillTV
         static void Main(string[] args)
         {
             Application.EnableVisualStyles();
+            if (args.Length >= 3 && args[0] == "--voice-test") { VoiceTest(args[1], args[2]); return; }
             Settings.Load();
             if (args.Length >= 2 && args[0] == "--snapshot") { SnapshotPath = args[1]; SnapshotHome = args.Length > 2 && args[2] == "home"; }
             Application.Run(new RemoteForm());

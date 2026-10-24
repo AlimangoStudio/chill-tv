@@ -1,9 +1,14 @@
 // Chill TV Remote: a floating dock for the Chill TV Showcase launcher.
 // A 48 px circle that opens into a remote laid out like the Mi Box remote. It talks to the Chill TV Showcase launcher's
-// remote server (port 8765) on your network; works with both Chill TV Home and Showcase. Collapsed it does nothing at all: no timers, no network.
+// remote server (port 8765) on your network; works with both Chill TV Home and Showcase. Collapsed it does nothing at all
+// (no timers, no network) unless Voice is on.
+// Voice: the Mac's microphone and Apple's speech recognizer, on the Mac itself where the Mac supports it. Say "TV" then a
+// command ("TV, open Netflix", "TV, pause", "TV, volume up"); only the command goes to the TV.
 // Build on the Mac: ./build-mac.sh   (needs only the Xcode Command Line Tools: xcode-select --install)
 import SwiftUI
 import AppKit
+import Speech
+import AVFoundation
 
 // MARK: - Settings (TV address and key), kept in UserDefaults
 
@@ -86,6 +91,154 @@ final class TV: ObservableObject {
     }
 }
 
+// MARK: - Voice: "TV" + a command, mapped to the same calls the keys make (the Windows remote uses the same table)
+
+final class Voice: ObservableObject {
+    @Published var on = UserDefaults.standard.bool(forKey: "voice") { didSet { UserDefaults.standard.set(on, forKey: "voice") } }
+    let tv: TV
+    private let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
+    private let engine = AVAudioEngine()
+    private var request: SFSpeechAudioBufferRecognitionRequest?
+    private var task: SFSpeechRecognitionTask?
+    private var pending: DispatchWorkItem?
+    init(tv: TV) { self.tv = tv }
+
+    static let wake = ["hey tv", "chill tv", "tv"]
+    static let commands: [String: String] = {
+        var c: [String: String] = [:]
+        func add(_ path: String, _ phrases: [String]) { for p in phrases { c[p] = path } }
+        add("/api/open?app=nf", ["open netflix", "netflix"])
+        add("/api/open?app=prime", ["open prime video", "open prime", "prime video"])
+        add("/api/open?app=hbo", ["open hbo max", "open hbo", "open max", "hbo max"])
+        add("/api/open?app=dis", ["open disney plus", "open disney", "disney plus"])
+        add("/api/open?app=play", ["open google play", "open play store", "open the play store"])
+        add("/api/home", ["home", "go home"])
+        add("/api/key?code=back", ["back", "go back"])
+        add("/api/apps", ["apps", "all apps", "show apps"])
+        add("/api/media?c=playpause", ["pause", "play", "resume"])
+        add("/api/media?c=ff", ["fast forward", "forward", "skip ahead"])
+        add("/api/media?c=rew", ["rewind", "go back ten seconds"])
+        add("/api/media?c=next", ["next", "next episode"])
+        add("/api/media?c=prev", ["previous"])
+        add("/api/vol?d=up", ["volume up", "louder", "turn it up"])
+        add("/api/vol?d=down", ["volume down", "quieter", "softer", "turn it down"])
+        add("/api/vol?d=mute", ["mute", "unmute"])
+        add("/api/key?code=up", ["up"]); add("/api/key?code=down", ["down"])
+        add("/api/key?code=left", ["left"]); add("/api/key?code=right", ["right"])
+        add("/api/key?code=ok", ["ok", "okay", "select", "enter"])
+        add("/api/reel", ["reel", "show reel", "clinic reel"])
+        add("/api/showcase", ["idle", "showcase"])
+        add("/api/music?on=1", ["music on"]); add("/api/music?on=0", ["music off"])
+        add("voice-off", ["stop listening"])
+        return c
+    }()
+
+    /// "TV, open Disney+." → "tv open disney plus"
+    static func normalize(_ s: String) -> String {
+        var t = s.lowercased().replacingOccurrences(of: "+", with: " plus ").replacingOccurrences(of: "t.v.", with: "tv")
+        t = String(t.unicodeScalars.map { CharacterSet.alphanumerics.contains($0) ? Character($0) : " " })
+        return t.split(separator: " ").joined(separator: " ")
+    }
+
+    /// The command after the last wake word, or nil.
+    static func path(for heard: String) -> String? {
+        let t = " " + normalize(heard)
+        for w in wake {
+            if let r = t.range(of: " " + w + " ", options: .backwards) {
+                return commands[String(t[r.upperBound...]).trimmingCharacters(in: .whitespaces)]
+            }
+        }
+        return nil
+    }
+
+    func toggle() {
+        if on { stop(); on = false; tv.note = "Voice off."; return }
+        guard tv.settings.configured else { tv.note = "Right-click the circle → Set TV address"; return }
+        start()
+    }
+
+    func start() {
+        SFSpeechRecognizer.requestAuthorization { status in
+            DispatchQueue.main.async {
+                guard status == .authorized else {
+                    self.on = false
+                    self.tv.note = "Allow Speech Recognition for Chill TV Remote in System Settings > Privacy & Security."
+                    return
+                }
+                AVCaptureDevice.requestAccess(for: .audio) { granted in
+                    DispatchQueue.main.async {
+                        guard granted else {
+                            self.on = false
+                            self.tv.note = "Allow the Microphone for Chill TV Remote in System Settings > Privacy & Security."
+                            return
+                        }
+                        self.listen()
+                    }
+                }
+            }
+        }
+    }
+
+    private func listen() {
+        guard let recognizer = recognizer, recognizer.isAvailable else {
+            on = false; tv.note = "Speech recognition is not available on this Mac right now."; return
+        }
+        let input = engine.inputNode
+        input.removeTap(onBus: 0)
+        input.installTap(onBus: 0, bufferSize: 1024, format: input.outputFormat(forBus: 0)) { [weak self] buffer, _ in
+            self?.request?.append(buffer)
+        }
+        engine.prepare()
+        do { try engine.start() } catch { on = false; tv.note = "The microphone could not start."; return }
+        on = true
+        tv.note = "Listening. Say \"TV\" and a command: \"TV, open Netflix\", \"TV, pause\", \"TV, volume up\"."
+        newTask()
+    }
+
+    /// One recognition task at a time; a new one after each command and whenever Apple ends one (about a minute).
+    private func newTask() {
+        task?.cancel(); request?.endAudio()
+        guard on, let recognizer = recognizer else { return }
+        let r = SFSpeechAudioBufferRecognitionRequest()
+        r.shouldReportPartialResults = true
+        r.taskHint = .search
+        r.contextualStrings = Voice.wake + Array(Voice.commands.keys)
+        if recognizer.supportsOnDeviceRecognition { r.requiresOnDeviceRecognition = true }
+        request = r
+        task = recognizer.recognitionTask(with: r) { [weak self] result, error in
+            DispatchQueue.main.async {
+                // a cancelled task still reports once; only the current request counts
+                guard let self = self, self.on, self.request === r else { return }
+                if let text = result?.bestTranscription.formattedString { self.heard(text) }
+                if error != nil || result?.isFinal == true { self.newTask() }
+            }
+        }
+    }
+
+    /// Acts after a short pause, so "TV, go back ten seconds" is not taken as "TV, go back" halfway through.
+    private func heard(_ text: String) {
+        pending?.cancel()
+        guard let path = Voice.path(for: text) else { return }
+        let w = DispatchWorkItem { [weak self] in
+            guard let self = self, self.on else { return }
+            if path == "voice-off" { self.toggle(); return }
+            self.tv.note = "Heard: \"\(text)\""
+            self.tv.send(path)
+            self.newTask()
+        }
+        pending = w
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.7, execute: w)
+    }
+
+    func stop() {
+        pending?.cancel(); pending = nil
+        task?.cancel(); task = nil
+        request?.endAudio(); request = nil
+        if engine.isRunning { engine.stop() }
+        engine.inputNode.removeTap(onBus: 0)
+    }
+}
+
 // MARK: - Look
 
 let teal = Color(red: 0.25, green: 0.76, blue: 0.71)
@@ -130,6 +283,7 @@ struct Pad: View {
 
 struct RemoteView: View {
     @ObservedObject var tv: TV
+    @ObservedObject var voice: Voice
     let collapse: () -> Void
     var body: some View {
         VStack(spacing: 10) {
@@ -160,6 +314,7 @@ struct RemoteView: View {
                 Key(label: "Play") { tv.send("/api/open?app=play") }
             }
             Key(label: tv.computerOn ? "⏹ Stop computer mode" : "🖥 Computer mode (keyboard & mouse)", tint: tv.computerOn ? gold : nil) { tv.computerMode() }
+            Key(label: voice.on ? "🎙 Listening: say \"TV …\"" : "🎙 Voice (Mac mic)", tint: voice.on ? gold : nil) { voice.toggle() }
             if !tv.isHome { HStack(spacing: 6) {
                 Key(label: "▶ Reel") { tv.send("/api/reel") }
                 Key(label: "Idle") { tv.send("/api/showcase") }
@@ -187,10 +342,12 @@ struct RemoteView: View {
 
 struct DotView: View {
     @ObservedObject var tv: TV
+    @ObservedObject var voice: Voice
     var body: some View {
         ZStack {
             Circle().fill(panelBG)
-            Circle().stroke(tv.online == false ? Color.red : teal, lineWidth: 3).padding(2)
+            // gold ring: Voice is listening, even folded up
+            Circle().stroke(tv.online == false ? Color.red : voice.on ? gold : teal, lineWidth: 3).padding(2)
             Text("C").font(.system(size: 20, weight: .semibold, design: .serif)).foregroundColor(gold)
         }.frame(width: 48, height: 48)
     }
@@ -201,6 +358,7 @@ struct DotView: View {
 final class Dock: NSObject, NSWindowDelegate {
     let settings = Settings()
     lazy var tv = TV(settings: settings)
+    lazy var voice = Voice(tv: tv)
     var panel: NSPanel!
     var expanded = false
     var idleTimer: Timer?
@@ -222,6 +380,7 @@ final class Dock: NSObject, NSWindowDelegate {
         showDot()
         panel.orderFrontRegardless()
         if !settings.configured { askSettings() }
+        else if voice.on { voice.start() }         // Voice was on when the remote last quit
     }
 
     func windowDidMove(_ n: Notification) {
@@ -230,7 +389,7 @@ final class Dock: NSObject, NSWindowDelegate {
     }
 
     func showDot() {
-        let v = NSHostingView(rootView: DotView(tv: tv).onTapGesture { [weak self] in self?.expand() }
+        let v = NSHostingView(rootView: DotView(tv: tv, voice: voice).onTapGesture { [weak self] in self?.expand() }
             .contextMenu {
                 Button("Set TV address and key…") { [weak self] in self?.askSettings() }
                 Button("Quit Chill TV Remote") { NSApp.terminate(nil) }
@@ -241,7 +400,7 @@ final class Dock: NSObject, NSWindowDelegate {
 
     func expand() {
         expanded = true
-        let v = NSHostingView(rootView: RemoteView(tv: tv, collapse: { [weak self] in self?.collapse() })
+        let v = NSHostingView(rootView: RemoteView(tv: tv, voice: voice, collapse: { [weak self] in self?.collapse() })
             .onHover { [weak self] _ in self?.poke() })
         let size = v.fittingSize
         resize(to: size, anchorTop: false)

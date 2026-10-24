@@ -19,6 +19,9 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
   <key>CFBundleShortVersionString</key><string>1.0</string>
   <key>LSMinimumSystemVersion</key><string>12.0</string>
   <key>LSUIElement</key><true/>
+  <!-- Voice: the Mac asks once for the microphone and speech recognition. -->
+  <key>NSMicrophoneUsageDescription</key><string>Voice listens for "TV" and a command, such as "TV, open Netflix".</string>
+  <key>NSSpeechRecognitionUsageDescription</key><string>Voice turns what you say into a remote command. On Macs that support it, this happens on the Mac.</string>
   <!-- The TV's remote server answers plain HTTP on your own network. -->
   <key>NSAppTransportSecurity</key><dict><key>NSAllowsArbitraryLoads</key><true/></dict>
 </dict></plist>

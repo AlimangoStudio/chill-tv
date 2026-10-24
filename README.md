@@ -9,7 +9,7 @@ There are two styles, plus a remote for your computer.
 | Home screen | Greeting with your home's name, weather, clock, app dock, top picks | Your ads in a big centre card, app dock, clock |
 | When idle | Clock screensaver with an alarm | Full-screen slides about your business |
 | Extras | Voice assistant with a name you choose ("Max, open Netflix"), alarm that wakes the TV, two themes | Quiet classical background music, a reel of your videos |
-| Remote | Mac, Windows and browser remote, with keyboard-and-mouse Computer mode | The same, plus Reel, Idle and Music buttons |
+| Remote | Mac, Windows and browser remote, with keyboard-and-mouse Computer mode and voice commands through the laptop's mic ("TV, open Netflix") | The same, plus Reel, Idle and Music buttons |
 | You set | Home name, assistant name, location (all in Settings on the TV) | Business name, tagline, website, slides, ads, music, reels, location (in `config.js`) |
 
 ## Screenshots
@@ -86,6 +86,14 @@ Both apps run a small remote server on the TV (port 8765). Every request needs a
   - Mac: `brew install scrcpy`.
   - On the TV, turn on USB/network debugging and choose "Always allow" the first time.
   - Video apps (Netflix and others) show black in the window because they block screen capture. Use their "Sign in with code" instead.
+- **Voice** (Windows and Mac): press **◉ Voice** and talk to the laptop. Start every command with "TV", so ordinary talk in the room is ignored:
+  - "TV, open Netflix" (also Prime Video, HBO Max, Disney Plus, Google Play), "TV, go home", "TV, back", "TV, apps"
+  - "TV, pause" / "play", "TV, fast forward", "TV, rewind", "TV, next"
+  - "TV, volume up" / "volume down" / "mute"
+  - "TV, up" / "down" / "left" / "right" / "OK"; on Showcase also "TV, reel", "TV, idle", "TV, music on" / "music off"
+  - "TV, stop listening" turns Voice off.
+
+  The circle's ring turns gold while it listens, also when the remote is folded up, and Voice stays on next time you start the remote. Windows uses its own offline speech recognizer (English); the Mac uses Apple's, on the Mac itself where the Mac supports it, and asks once for the microphone and speech recognition. Only the command goes to the TV, never the audio.
 
 The remote is plain HTTP, so keep it on your own network or a private VPN such as Tailscale. Don't expose port 8765 to the internet.
 
