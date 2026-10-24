@@ -1,0 +1,393 @@
+// Chill TV Remote for Windows: the same floating remote as the Mac one. A 48 px circle that stays on top and
+// opens into a remote laid out like the TV's own remote. It talks to the Chill TV Showcase launcher's remote
+// server (port 8765) on your network. Collapsed it does nothing at all: no timers, no network.
+// Settings (TV address and key) are kept for this Windows user only, the key encrypted by Windows (DPAPI).
+// Build: build.cmd (uses the C# compiler that ships with Windows; nothing to install).
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Drawing;
+using System.Drawing.Drawing2D;
+using System.Drawing.Text;
+using System.IO;
+using System.Net;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.RegularExpressions;
+using System.Threading;
+using System.Windows.Forms;
+
+namespace ChillTV
+{
+    static class Settings
+    {
+        static readonly string Dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "ChillTV");
+        static readonly string FilePath = Path.Combine(Dir, "remote.dat");
+        public static string Host = "";
+        public static string Key = "";
+        public static int X = -1, Y = -1;
+        public static bool Configured { get { return Host.Length > 0 && Key.Length > 0; } }
+
+        public static void Load()
+        {
+            try
+            {
+                if (!File.Exists(FilePath)) return;
+                byte[] raw = ProtectedData.Unprotect(File.ReadAllBytes(FilePath), null, DataProtectionScope.CurrentUser);
+                string[] p = Encoding.UTF8.GetString(raw).Split('\n');
+                Host = p[0].Trim();
+                Key = p.Length > 1 ? p[1].Trim() : "";
+                if (p.Length > 3) { int.TryParse(p[2], out X); int.TryParse(p[3], out Y); }
+            }
+            catch { Host = ""; Key = ""; }
+        }
+
+        public static void Save()
+        {
+            try
+            {
+                Directory.CreateDirectory(Dir);
+                byte[] raw = Encoding.UTF8.GetBytes(Host + "\n" + Key + "\n" + X + "\n" + Y);
+                File.WriteAllBytes(FilePath, ProtectedData.Protect(raw, null, DataProtectionScope.CurrentUser));
+            }
+            catch { }
+        }
+    }
+
+    class Key
+    {
+        public RectangleF R;
+        public string Label;
+        public Color? Tint;
+        public bool Round;
+        public Action Do;
+        public Key(RectangleF r, string label, Color? tint, Action act) { R = r; Label = label; Tint = tint; Do = act; }
+    }
+
+    class RemoteForm : Form
+    {
+        static readonly Color Teal = Color.FromArgb(64, 194, 181);
+        static readonly Color Gold = Color.FromArgb(232, 201, 120);
+        static readonly Color PanelBG = Color.FromArgb(20, 33, 36);
+        const int Dot = 48, PanelW = 260;
+
+        bool expanded;
+        bool? online;
+        string note = "";
+        int volume = 0, maxVolume = 15;
+        bool muted, music = true;
+        Process computer;
+        readonly List<Key> keys = new List<Key>();
+        Key hot;
+        Point down; bool dragged;
+        RectangleF volBar;
+        int panelH = 560;
+
+        public RemoteForm()
+        {
+            Text = "Chill TV Remote";
+            FormBorderStyle = FormBorderStyle.None;
+            TopMost = true;
+            ShowInTaskbar = false;
+            StartPosition = FormStartPosition.Manual;
+            BackColor = PanelBG;
+            DoubleBuffered = true;
+            Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
+            Rectangle wa = Screen.PrimaryScreen.WorkingArea;
+            Location = Settings.X >= 0 ? new Point(Settings.X, Settings.Y) : new Point(wa.Right - 72, wa.Bottom - 168);
+            Collapse();
+            Deactivate += delegate { if (expanded && SnapshotPath == null) Collapse(); };
+            if (SnapshotPath != null) Shown += delegate { SaveSnapshot(); };
+            else Shown += delegate { if (!Settings.Configured) AskSettings(); };
+        }
+
+        // ---------- circle <-> remote ----------
+        void Collapse()
+        {
+            expanded = false; keys.Clear(); hot = null;
+            Point anchor = Location;
+            if (Width > Dot) anchor = new Point(Right - Dot, Top);   // the circle goes back where the remote's top-right was
+            Size = new Size(Dot, Dot);
+            Location = Fit(anchor, Size);
+            using (GraphicsPath p = new GraphicsPath()) { p.AddEllipse(0, 0, Dot, Dot); Region = new Region(p); }
+            Invalidate();
+        }
+
+        void Expand()
+        {
+            expanded = true;
+            Layout_();
+            Point at = new Point(Right - PanelW, Top);
+            Size = new Size(PanelW, panelH);
+            Location = Fit(at, Size);
+            using (GraphicsPath p = Rounded(new RectangleF(0, 0, PanelW, panelH), 22)) Region = new Region(p);
+            Invalidate();
+            Activate();
+            if (Settings.Configured) Send("/api/status");
+        }
+
+        static Point Fit(Point p, Size s)
+        {
+            Rectangle wa = Screen.FromPoint(p).WorkingArea;
+            return new Point(Math.Max(wa.Left, Math.Min(p.X, wa.Right - s.Width)), Math.Max(wa.Top, Math.Min(p.Y, wa.Bottom - s.Height)));
+        }
+
+        // ---------- layout: the Mac remote, in pixels ----------
+        void Layout_()
+        {
+            keys.Clear();
+            float x = 14, w = PanelW - 28, y = 14;
+            keys.Add(new Key(new RectangleF(PanelW - 14 - 24, y - 2, 24, 24), "–", null, Collapse) { Round = true });
+            y += 30;
+            // direction pad: a 150 px circle with arrows and a round OK
+            float cx = PanelW / 2f, cy = y + 75;
+            keys.Add(new Key(new RectangleF(cx - 18, cy - 70, 36, 30), "▲", null, delegate { Send("/api/key?code=up"); }) { Round = true });
+            keys.Add(new Key(new RectangleF(cx - 18, cy + 40, 36, 30), "▼", null, delegate { Send("/api/key?code=down"); }) { Round = true });
+            keys.Add(new Key(new RectangleF(cx - 70, cy - 15, 36, 30), "◀", null, delegate { Send("/api/key?code=left"); }) { Round = true });
+            keys.Add(new Key(new RectangleF(cx + 34, cy - 15, 36, 30), "▶", null, delegate { Send("/api/key?code=right"); }) { Round = true });
+            keys.Add(new Key(new RectangleF(cx - 25, cy - 25, 50, 50), "OK", null, delegate { Send("/api/key?code=ok"); }) { Round = true });
+            y += 160;
+            Row(ref y, x, w, new string[] { "Apps", "◀ Back", "⌂ Home" }, new string[] { "/api/apps", "/api/key?code=back", "/api/home" });
+            Row(ref y, x, w, new string[] { "◀◀", "▶ ❚❚", "▶▶" }, new string[] { "/api/media?c=rew", "/api/media?c=playpause", "/api/media?c=ff" });
+            float half = (w - 6) / 2;
+            keys.Add(new Key(new RectangleF(x, y, half, 32), "NETFLIX", Color.FromArgb(229, 26, 36), delegate { Send("/api/open?app=nf"); }));
+            keys.Add(new Key(new RectangleF(x + half + 6, y, half, 32), "prime video", Color.FromArgb(0, 168, 224), delegate { Send("/api/open?app=prime"); }));
+            y += 42;
+            Row(ref y, x, w, new string[] { "HBO Max", "Disney+", "Play" }, new string[] { "/api/open?app=hbo", "/api/open?app=dis", "/api/open?app=play" });
+            bool on = computer != null && !computer.HasExited;
+            keys.Add(new Key(new RectangleF(x, y, w, 32), on ? "■  Stop computer mode" : "Computer mode (keyboard & mouse)", on ? (Color?)Gold : null, ComputerMode));
+            y += 42;
+            float third = (w - 12) / 3;
+            keys.Add(new Key(new RectangleF(x, y, third, 32), "▶ Reel", null, delegate { Send("/api/reel"); }));
+            keys.Add(new Key(new RectangleF(x + third + 6, y, third, 32), "Idle", null, delegate { Send("/api/showcase"); }));
+            keys.Add(new Key(new RectangleF(x + 2 * (third + 6), y, third, 32), music ? "♪ On" : "♪ Off", null, delegate { Send("/api/music?on=" + (music ? "0" : "1")); }));
+            y += 42;
+            keys.Add(new Key(new RectangleF(x, y, 40, 32), "−", null, delegate { Send("/api/vol?d=down"); }));
+            volBar = new RectangleF(x + 48, y + 12.5f, w - 48 - 104, 7);
+            keys.Add(new Key(new RectangleF(x + w - 96, y, 40, 32), "+", null, delegate { Send("/api/vol?d=up"); }));
+            keys.Add(new Key(new RectangleF(x + w - 50, y, 50, 32), muted ? "Unmute" : "Mute", null, delegate { Send("/api/vol?d=mute"); }));
+            y += 42;
+            panelH = (int)(y + (note.Length > 0 ? 40 : 4));
+        }
+
+        void Row(ref float y, float x, float w, string[] labels, string[] paths)
+        {
+            float bw = (w - 6 * (labels.Length - 1)) / labels.Length;
+            for (int i = 0; i < labels.Length; i++)
+            {
+                string path = paths[i];
+                keys.Add(new Key(new RectangleF(x + i * (bw + 6), y, bw, 32), labels[i], null, delegate { Send(path); }));
+            }
+            y += 42;
+        }
+
+        // ---------- drawing ----------
+        static GraphicsPath Rounded(RectangleF r, float rad)
+        {
+            GraphicsPath p = new GraphicsPath(); float d = rad * 2;
+            p.AddArc(r.X, r.Y, d, d, 180, 90); p.AddArc(r.Right - d, r.Y, d, d, 270, 90);
+            p.AddArc(r.Right - d, r.Bottom - d, d, d, 0, 90); p.AddArc(r.X, r.Bottom - d, d, d, 90, 90);
+            p.CloseFigure(); return p;
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            Graphics g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias; g.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
+            StringFormat mid = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+            g.Clear(PanelBG);
+            if (!expanded)
+            {
+                using (Pen ring = new Pen(online == false ? Color.FromArgb(224, 87, 79) : Teal, 3)) g.DrawEllipse(ring, 3.5f, 3.5f, Dot - 7, Dot - 7);
+                using (Font f = new Font("Georgia", 15f, FontStyle.Bold)) using (Brush b = new SolidBrush(Gold)) g.DrawString("C", f, b, new RectangleF(0, 1, Dot, Dot), mid);
+                return;
+            }
+            using (GraphicsPath edge = Rounded(new RectangleF(0.5f, 0.5f, PanelW - 1, panelH - 1), 22)) using (Pen p = new Pen(Color.FromArgb(31, 255, 255, 255))) g.DrawPath(p, edge);
+            // header
+            using (Brush b = new SolidBrush(online == true ? Teal : online == false ? Color.FromArgb(224, 87, 79) : Color.Gray)) g.FillEllipse(b, 14, 21.5f, 9, 9);
+            using (Font f = new Font("Segoe UI", 9f, FontStyle.Bold)) g.DrawString("C H I L L   T V", f, Brushes.White, 28, 16);
+            // pad circle
+            float cx = PanelW / 2f, cy = 44 + 75;
+            using (Brush b = new SolidBrush(Color.FromArgb(18, 255, 255, 255))) g.FillEllipse(b, cx - 75, cy - 75, 150, 150);
+            using (Pen p = new Pen(Color.FromArgb(36, 255, 255, 255))) g.DrawEllipse(p, cx - 75, cy - 75, 150, 150);
+            foreach (Key k in keys)
+            {
+                bool isHot = k == hot;
+                if (k.Round)
+                {
+                    if (k.Label == "OK") using (Brush b = new SolidBrush(Color.FromArgb(isHot ? 60 : 36, 255, 255, 255))) g.FillEllipse(b, k.R);
+                    else if (isHot) using (Brush b = new SolidBrush(Color.FromArgb(30, 255, 255, 255))) g.FillEllipse(b, k.R);
+                    g.DrawString(k.Label, Font, Brushes.White, k.R, mid);
+                    continue;
+                }
+                using (GraphicsPath path = Rounded(k.R, 10))
+                {
+                    Color fill = k.Tint ?? Color.FromArgb(isHot ? 36 : 20, 255, 255, 255);
+                    if (k.Tint.HasValue && isHot) fill = ControlPaint.Light(fill, 0.2f);
+                    using (Brush b = new SolidBrush(fill)) g.FillPath(b, path);
+                    using (Pen p = new Pen(Color.FromArgb(31, 255, 255, 255))) g.DrawPath(p, path);
+                }
+                using (Brush tb = new SolidBrush(k.Tint.HasValue ? Color.Black : Color.White))
+                using (Font f = new Font("Segoe UI", k.Label.Length > 20 ? 8.5f : 9.5f, FontStyle.Bold))
+                    g.DrawString(k.Label, f, tb, k.R, mid);
+            }
+            // volume bar
+            using (GraphicsPath track = Rounded(volBar, 3.5f)) using (Brush b = new SolidBrush(Color.FromArgb(26, 255, 255, 255))) g.FillPath(b, track);
+            float fw = volBar.Width * volume / Math.Max(1, maxVolume);
+            if (fw >= 7) using (GraphicsPath fill = Rounded(new RectangleF(volBar.X, volBar.Y, fw, volBar.Height), 3.5f)) using (Brush b = new SolidBrush(muted ? Color.Gray : Gold)) g.FillPath(b, fill);
+            if (note.Length > 0)
+                using (Font f = new Font("Segoe UI", 8.5f)) using (Brush b = new SolidBrush(Color.FromArgb(166, 255, 255, 255)))
+                    g.DrawString(note, f, b, new RectangleF(14, panelH - 40, PanelW - 28, 36));
+        }
+
+        // ---------- mouse: drag anywhere, click a key, click the circle to open ----------
+        protected override void OnMouseDown(MouseEventArgs e) { down = e.Location; dragged = false; if (e.Button == MouseButtons.Right && !expanded) Menu_(e.Location); }
+        protected override void OnMouseMove(MouseEventArgs e)
+        {
+            if (e.Button == MouseButtons.Left && (Math.Abs(e.X - down.X) > 3 || Math.Abs(e.Y - down.Y) > 3))
+            {
+                dragged = true; Location = new Point(Left + e.X - down.X, Top + e.Y - down.Y); return;
+            }
+            Key k = null;
+            foreach (Key c in keys) if (c.R.Contains(e.Location)) k = c;
+            if (k != hot) { hot = k; Cursor = k != null ? Cursors.Hand : Cursors.Default; Invalidate(); }
+        }
+        protected override void OnMouseUp(MouseEventArgs e)
+        {
+            if (e.Button != MouseButtons.Left) return;
+            if (dragged) { if (!expanded) { Settings.X = Left; Settings.Y = Top; Settings.Save(); } return; }
+            if (!expanded) { Expand(); return; }
+            foreach (Key k in keys) if (k.R.Contains(e.Location)) { k.Do(); return; }
+        }
+        protected override void OnMouseLeave(EventArgs e) { hot = null; Invalidate(); }
+
+        void Menu_(Point p)
+        {
+            ContextMenuStrip m = new ContextMenuStrip();
+            m.Items.Add("Set TV address and key…", null, delegate { AskSettings(); });
+            m.Items.Add("Quit Chill TV Remote", null, delegate { Close(); });
+            m.Show(this, p);
+        }
+
+        // ---------- talking to the TV ----------
+        void Send(string path)
+        {
+            if (!Settings.Configured) { AskSettings(); return; }
+            string url = "http://" + Settings.Host + ":8765" + path + (path.Contains("?") ? "&" : "?") + "k=" + Uri.EscapeDataString(Settings.Key);
+            ThreadPool.QueueUserWorkItem(delegate
+            {
+                string body = null, err = null;
+                try
+                {
+                    HttpWebRequest req = (HttpWebRequest)WebRequest.Create(url);
+                    req.Timeout = 4000;
+                    using (HttpWebResponse r = (HttpWebResponse)req.GetResponse())
+                    using (StreamReader rd = new StreamReader(r.GetResponseStream())) body = rd.ReadToEnd();
+                }
+                catch (WebException we)
+                {
+                    HttpWebResponse r = we.Response as HttpWebResponse;
+                    int code = r != null ? (int)r.StatusCode : 0;
+                    err = code == 403 ? "Wrong key" : code == 0 ? "TV not reachable (is it on?)" : "Error " + code;
+                }
+                catch (Exception ex) { err = ex.Message; }
+                try { BeginInvoke((MethodInvoker)delegate { Apply(body, err); }); } catch { }
+            });
+        }
+
+        void Apply(string body, string err)
+        {
+            if (err != null) { online = false; note = err; }
+            else
+            {
+                online = true; note = "";
+                Match v = Regex.Match(body ?? "", "\"volume\":(\\d+)"); if (v.Success) volume = int.Parse(v.Groups[1].Value);
+                Match mx = Regex.Match(body ?? "", "\"max\":(\\d+)"); if (mx.Success) maxVolume = Math.Max(1, int.Parse(mx.Groups[1].Value));
+                Match m = Regex.Match(body ?? "", "\"muted\":(true|false)"); if (m.Success) muted = m.Groups[1].Value == "true";
+                Match mu = Regex.Match(body ?? "", "\"music\":(true|false)"); if (mu.Success) music = mu.Groups[1].Value == "true";
+                Match n = Regex.Match(body ?? "", "\"note\":\"([^\"]*)\""); if (n.Success) note = n.Groups[1].Value;
+            }
+            Relayout();
+        }
+
+        void Relayout()
+        {
+            if (!expanded) { Invalidate(); return; }
+            Layout_();
+            Height = panelH;
+            using (GraphicsPath p = Rounded(new RectangleF(0, 0, PanelW, panelH), 22)) Region = new Region(p);
+            Invalidate();
+        }
+
+        // Computer mode: the TV in a window on this PC (scrcpy), driven by the PC keyboard and mouse.
+        // Put scrcpy in a "scrcpy" folder next to this program, or on the PATH.
+        void ComputerMode()
+        {
+            if (computer != null && !computer.HasExited) { try { computer.Kill(); } catch { } return; }
+            if (!Settings.Configured) { AskSettings(); return; }
+            string exe = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "scrcpy", "scrcpy.exe");
+            if (!File.Exists(exe)) exe = "scrcpy.exe";
+            ProcessStartInfo si = new ProcessStartInfo(exe,
+                "--tcpip=" + Settings.Host + ":5555 --keyboard=uhid --mouse=sdk --no-audio --max-size 1280 --max-fps 30 --window-title \"Chill TV\"");
+            si.UseShellExecute = false; si.CreateNoWindow = true;
+            try
+            {
+                computer = Process.Start(si);
+                computer.EnableRaisingEvents = true;
+                computer.Exited += delegate { try { BeginInvoke((MethodInvoker)delegate { note = ""; Relayout(); }); } catch { } };
+                note = "Computer mode on. Netflix and other video apps show black: use their Sign in with code.";
+            }
+            catch { note = "scrcpy not found: put it in a scrcpy folder next to this app."; }
+            Relayout();
+        }
+
+        void AskSettings()
+        {
+            using (Form f = new Form())
+            {
+                f.Text = "Chill TV Remote"; f.FormBorderStyle = FormBorderStyle.FixedDialog; f.MaximizeBox = false; f.MinimizeBox = false;
+                f.StartPosition = FormStartPosition.CenterScreen; f.ClientSize = new Size(360, 190); f.TopMost = true; f.Font = new Font("Segoe UI", 9.5f);
+                Label l = new Label(); l.Text = "TV address on your network (for example 192.168.1.50) and the remote key from showcase\\remote-key.txt."; l.Bounds = new Rectangle(14, 10, 332, 40); f.Controls.Add(l);
+                TextBox host = new TextBox(); host.Bounds = new Rectangle(14, 56, 332, 24); host.Text = Settings.Host; f.Controls.Add(host);
+                TextBox key = new TextBox(); key.Bounds = new Rectangle(14, 96, 332, 24); key.Text = Settings.Key; key.UseSystemPasswordChar = true; f.Controls.Add(key);
+                Button ok = new Button(); ok.Text = "Save"; ok.Bounds = new Rectangle(190, 144, 75, 30); ok.DialogResult = DialogResult.OK; f.Controls.Add(ok);
+                Button cancel = new Button(); cancel.Text = "Cancel"; cancel.Bounds = new Rectangle(271, 144, 75, 30); cancel.DialogResult = DialogResult.Cancel; f.Controls.Add(cancel);
+                f.AcceptButton = ok; f.CancelButton = cancel;
+                if (f.ShowDialog() == DialogResult.OK)
+                {
+                    Settings.Host = host.Text.Trim(); Settings.Key = key.Text.Trim(); Settings.Save();
+                    if (expanded) Send("/api/status");
+                }
+            }
+        }
+
+        // ---------- --snapshot file.png: open, show sample status, save a picture (for the README), exit ----------
+        static string SnapshotPath;
+        void SaveSnapshot()
+        {
+            Expand();
+            online = true; volume = 9; maxVolume = 15; note = ""; Relayout();
+            System.Windows.Forms.Timer t = new System.Windows.Forms.Timer(); t.Interval = 800;
+            t.Tick += delegate
+            {
+                t.Stop();
+                using (Bitmap bmp = new Bitmap(Width, Height))
+                {
+                    using (Graphics g = Graphics.FromImage(bmp)) g.CopyFromScreen(Location, Point.Empty, Size);
+                    bmp.Save(SnapshotPath, System.Drawing.Imaging.ImageFormat.Png);
+                }
+                Close();
+            };
+            t.Start();
+        }
+
+        [STAThread]
+        static void Main(string[] args)
+        {
+            Application.EnableVisualStyles();
+            Settings.Load();
+            if (args.Length == 2 && args[0] == "--snapshot") SnapshotPath = args[1];
+            Application.Run(new RemoteForm());
+        }
+    }
+}

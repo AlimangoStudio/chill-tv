@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1920, user-scalable=no">
+<title>Chill TV clock</title>
+<link rel="stylesheet" href="fonts.css">
+<style>
+:root{--ink:#F4F1EA;--muted:rgba(244,241,234,.62);--accent:#F2B880;--glow:rgba(242,184,128,.28)}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:#0B0F17;color:var(--ink);font-family:Inter,system-ui,sans-serif}
+#stage{position:absolute;left:0;top:0;width:1920px;height:1080px;transform-origin:0 0;overflow:hidden;
+  background:radial-gradient(1200px 800px at 20% 10%,#1B2440 0%,transparent 60%),radial-gradient(1000px 700px at 85% 90%,#2A1B34 0%,transparent 60%),#0B0F17}
+body.alarm #stage{background:radial-gradient(1100px 760px at 50% 40%,#3A2440 0%,transparent 65%),radial-gradient(900px 700px at 15% 90%,#1D2E4A 0%,transparent 60%),#0E1420}
+#face{position:absolute;left:0;top:0;width:900px;text-align:left;transition:opacity 1.6s ease,transform 1.6s ease}
+#face.fade{opacity:0}
+.time{font-family:Fraunces,Georgia,serif;font-weight:300;font-size:250px;line-height:.95;letter-spacing:-.02em;white-space:nowrap}
+.time .ampm{font-family:Inter,sans-serif;font-size:56px;font-weight:300;color:var(--muted);margin-left:18px;letter-spacing:.04em}
+.date{margin-top:22px;font-size:40px;font-weight:300;color:var(--muted)}
+.wx{margin-top:34px;display:flex;align-items:center;gap:18px;font-size:30px;font-weight:300;color:var(--muted)}
+.wx b{color:var(--ink);font-weight:400}
+.wx .dot{width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 18px var(--accent)}
+.alarmonly{display:none}
+body.alarm .alarmonly{display:block}
+body.alarm .stop.alarmonly{display:inline-block}
+body:not(.alarm) .alarmonly{display:none!important}
+body.alarm #face{left:50%;top:50%;transform:translate(-50%,-50%);text-align:center;width:1400px}
+body.alarm .wx{justify-content:center}
+.hello{font-family:Fraunces,Georgia,serif;font-size:64px;font-weight:600;margin-bottom:26px;
+  background:linear-gradient(100deg,#F7C59F 20%,#FFE9D6 50%,#E7A6C8 80%);-webkit-background-clip:text;background-clip:text;color:transparent}
+.stop{margin-top:56px;display:inline-block;padding:18px 40px;border-radius:999px;font-size:30px;font-weight:500;
+  background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.22);animation:breathe 2s ease-in-out infinite}
+@keyframes breathe{0%,100%{opacity:.65;transform:scale(1)}50%{opacity:1;transform:scale(1.04)}}
+.rings{position:absolute;left:50%;top:50%;width:0;height:0;display:none}
+body.alarm .rings{display:block}
+.rings i{position:absolute;left:-380px;top:-380px;width:760px;height:760px;border-radius:50%;border:2px solid var(--glow);
+  animation:ring 3s cubic-bezier(.2,.6,.3,1) infinite;opacity:0}
+.rings i:nth-child(2){animation-delay:1s}.rings i:nth-child(3){animation-delay:2s}
+@keyframes ring{0%{transform:scale(.55);opacity:.9}100%{transform:scale(1.5);opacity:0}}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="rings" aria-hidden="true"><i></i><i></i><i></i></div>
+  <div id="face">
+    <div class="hello alarmonly" id="hello">Good morning</div>
+    <div class="time"><span id="hm">--:--</span><span class="ampm" id="ampm"></span></div>
+    <div class="date" id="date"></div>
+    <div class="wx" id="wx"><span class="dot"></span><span id="wxText">Loading weather…</span></div>
+    <div class="stop alarmonly">Press any button to stop</div>
+  </div>
+</div>
+<script>
+(function () {
+  'use strict';
+  var mode = (location.hash || '#dream').slice(1);
+  document.body.className = mode;
+
+  // Same location and home name the home screen uses (Settings → Location, Settings → Names).
+  var DEVICE_TZ = (function () { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch (e) { return 'UTC'; } })();
+  var HOME_NAME = 'My Home';
+  try { HOME_NAME = localStorage.getItem('homeName') || HOME_NAME; } catch (e) {}
+  var LOC = { name: '', sub: '', lat: null, lon: null, tz: DEVICE_TZ };
+  try { var saved = JSON.parse(localStorage.getItem('homeLocation') || 'null'); if (saved && saved.lat) LOC = saved; } catch (e) {}
+  var TZ = LOC.tz || DEVICE_TZ;
+
+  var stage = document.getElementById('stage');
+  function fit() { stage.style.transform = 'scale(' + Math.min(window.innerWidth / 1920, window.innerHeight / 1080) + ')'; }
+  window.addEventListener('resize', fit); fit();
+
+  function tick() {
+    var now = new Date();
+    var parts = new Intl.DateTimeFormat('en-US', { timeZone: TZ, hour: 'numeric', minute: '2-digit', hour12: true }).formatToParts(now);
+    function p(t) { var f = parts.filter(function (x) { return x.type === t; })[0]; return f ? f.value : ''; }
+    document.getElementById('hm').textContent = p('hour') + ':' + p('minute');
+    document.getElementById('ampm').textContent = p('dayPeriod');
+    var hr = Number(new Intl.DateTimeFormat('en-US', { timeZone: TZ, hour: 'numeric', hourCycle: 'h23' }).format(now));
+    document.getElementById('hello').textContent = (hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening') + ', ' + HOME_NAME;
+    document.getElementById('date').textContent = new Intl.DateTimeFormat('en-US', { timeZone: TZ, weekday: 'long', month: 'long', day: 'numeric' }).format(now);
+  }
+
+  function wxText(code) {
+    if (code === 0) return 'Clear'; if (code === 1) return 'Mainly clear'; if (code === 2) return 'Partly cloudy'; if (code === 3) return 'Cloudy';
+    if (code === 45 || code === 48) return 'Fog'; if (code >= 51 && code <= 57) return 'Drizzle';
+    if (code === 61 || code === 80) return 'Light rain'; if (code === 63 || code === 81) return 'Rain';
+    if (code === 65 || code === 82 || code === 66 || code === 67) return 'Heavy rain'; if (code >= 95) return 'Thunderstorm';
+    return 'Cloudy';
+  }
+  function weather() {
+    if (LOC.lat == null) { document.getElementById('wxText').textContent = 'Set a location on the home screen'; return; }
+    var x = new XMLHttpRequest();
+    x.open('GET', 'https://api.open-meteo.com/v1/forecast?latitude=' + LOC.lat + '&longitude=' + LOC.lon +
+      '&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=1');
+    x.timeout = 15000;
+    x.onload = function () {
+      try {
+        var d = JSON.parse(x.responseText);
+        document.getElementById('wxText').innerHTML = '<b>' + Math.round(d.current.temperature_2m) + '°</b> ' + wxText(d.current.weather_code) +
+          ' · ' + LOC.name + ' · H ' + Math.round(d.daily.temperature_2m_max[0]) + '° L ' + Math.round(d.daily.temperature_2m_min[0]) + '°';
+      } catch (e) {}
+    };
+    x.onerror = x.ontimeout = function () { document.getElementById('wxText').textContent = LOC.name; };
+    x.send();
+  }
+
+  // Night clock drifts to a new spot every minute so nothing burns into the screen.
+  var face = document.getElementById('face');
+  function place() {
+    if (mode !== 'dream') return;
+    face.classList.add('fade');
+    setTimeout(function () {
+      var x = 120 + Math.random() * (1920 - 240 - face.offsetWidth);
+      var y = 110 + Math.random() * (1080 - 220 - face.offsetHeight);
+      face.style.transform = 'translate(' + Math.round(x) + 'px,' + Math.round(y) + 'px)';
+      face.classList.remove('fade');
+    }, 1700);
+  }
+
+  tick(); setInterval(tick, 1000);
+  weather(); setInterval(weather, 30 * 60 * 1000);
+  if (mode === 'dream') {
+    face.style.transform = 'translate(160px,300px)';
+    setInterval(place, 60 * 1000);
+  }
+})();
+</script>
+</body>
+</html>

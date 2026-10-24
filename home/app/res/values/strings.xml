@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="volume_hud_description">Shows a glass volume bar at the top of the screen when the volume changes. It does not read the screen.</string>
+</resources>
