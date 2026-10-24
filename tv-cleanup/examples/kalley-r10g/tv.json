@@ -1,0 +1,6 @@
+{
+  "tv": "Kalley R10G (device R10G, product ACER_FFM, MOKA, Realtek RTD2875P), Latin America",
+  "os": "Google TV 14",
+  "brand": "Kalley",
+  "notes": "Same hardware family as `prismplus-q65-ultra-r10g/` with different preloads: Claro, Kick, JioTV, CBS, Apple TV, Prime Video, karaoke, Play Movies; launcherx + setupwraith off for a custom launcher (Wi-Fi survived; voice untested); Input key is KEYCODE_TV_INPUT (RC860G) and needs InputKeyService; keep Realtek dtv/atv for inputs and OTA"
+}

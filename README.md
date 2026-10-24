@@ -34,6 +34,12 @@ Left: connected to Showcase. Right: connected to Home, where the Reel, Idle and 
 
 ![Computer mode](docs/screenshots/pc-control.png)
 
+## Step 0: clean the TV (optional, recommended)
+
+[`tv-cleanup/`](tv-cleanup/README.md) switches off the ad services, telemetry and preloaded bloat over Wi-Fi. It has tested lists for 261 Android TV models: TCL, Sony, Xiaomi / Mi Box, Philips, Hisense, Fire TV, Chromecast, Shield and more. Nothing is uninstalled, and a restore script undoes every step. The lists and tools come from [CleanYourTV](https://github.com/Gathin23/cleanyourtv) (MIT).
+
+LG (webOS) and Samsung (Tizen) TVs aren't Android, so neither Chill TV nor the cleanup tools run on them. Plug an Android TV box such as a Mi Box into them instead.
+
 ## Build and install
 
 You need the Android SDK (build-tools 34.0.0 and platform android-34), JDK 17 and `adb`. The build scripts are PowerShell and need no Gradle.
@@ -96,11 +102,12 @@ Connected to a Home TV, the remote hides the Showcase-only buttons (Reel, Idle, 
   - *Gymnopédie No. 2*: Satie, Michael Laucke, public domain
   - *Gnossienne No. 1*: Satie, La Pianista, public domain
   - *Nocturne Op. 32 No. 2*: Chopin, Olga Gurevich (Musopen), public domain
+- **TV cleanup** (`tv-cleanup/`): tools and model lists from [CleanYourTV](https://github.com/Gathin23/cleanyourtv), © Gathin, MIT (see `tv-cleanup/LICENSE-cleanyourtv`).
 - **Weather and city search**: [Open-Meteo](https://open-meteo.com) (free, no key).
 - Netflix, Prime Video, HBO Max, Disney+ and Google Play are trademarks of their owners. Chill TV only opens their apps.
 
 ## Related
 
-- [CleanYourTV](https://github.com/Gathin23/cleanyourtv) removes the ad services and preloaded bloat from Android and Google TVs over Wi-Fi, with a one-line restore. It's a good first step before installing a clean launcher like this one.
+- [CleanYourTV](https://github.com/Gathin23/cleanyourtv) by Gathin is the source of `tv-cleanup/` (MIT). It also has its own Apple TV-style launcher, themes and add-ons.
 
 Made by Alimango Studio.

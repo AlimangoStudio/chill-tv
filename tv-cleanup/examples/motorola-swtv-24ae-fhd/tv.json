@@ -1,0 +1,6 @@
+{
+  "tv": "Motorola SWTV-24AE-FHD (Skyworth OEM, beomil, MediaTek), India/Global",
+  "os": "Google TV 14",
+  "brand": "Motorola",
+  "notes": "Skyworth after-sale/activation trackers, recommendation rows and partner customizer, TV Guard (dailymanage), Daily Key (myapp), e-manual; Google Play Games and feedback; launcherx + setupwraith off; setupwraith owned Wi-Fi saved at setup; remote Settings button emits keycode 83 (KEYCODE_NOTIFICATION) on scancode 240, needs HomeKeyService; Live TV is `com.cltv.hybrid`"
+}

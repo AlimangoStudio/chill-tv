@@ -1,0 +1,6 @@
+{
+  "tv": "Sony BRAVIA 4K VH2 (KD-55X80J, BRAVIA_VH2, MediaTek), EU and North America",
+  "os": "Google TV 12",
+  "brand": "Sony",
+  "notes": "Samba TV ACR, Sony/Qterics device agents, demo mode, help tiles; setupwraith off for a custom launcher; Sony promos/Select/IoT off (factory-disabled on EU, enabled on UC); Assistant, Chromecast, firmware updates kept; on UC firmware launcherx outranks set-home-activity at priority=2, so the stock launcher must be disabled too"
+}

@@ -1,0 +1,6 @@
+{
+  "tv": "TCL BeyondTV2 (Latin America / Brazil, Realtek RTD2851)",
+  "os": "Android TV 9",
+  "brand": "TCL",
+  "notes": "TCL analytics and boot content feed; `com.tcl.esticker` does not stay disabled on this firmware; UK Freeview apps already off at the factory; [draw-cost notes](../docs/devices/tcl-beyondtv2-v660.md)"
+}

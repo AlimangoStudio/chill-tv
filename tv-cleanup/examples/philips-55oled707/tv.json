@@ -1,0 +1,6 @@
+{
+  "tv": "Philips 55OLED707/12 (TP Vision, PH1M_EA_9970A, MediaTek MT5895), UK",
+  "os": "Android TV 11",
+  "brand": "Philips",
+  "notes": "Same board and firmware build as `philips-50pus8517/`, on an OLED panel: DAC analytics, Top Picks, app gallery and its preload installer, Alexa, setupwraith (Ethernet only, Wi-Fi impact unchecked); `nettvbrowser` must stay or ITVX hangs; Play-Fi re-enables itself at every boot, so it is left out; Chromecast and all used streaming apps kept"
+}

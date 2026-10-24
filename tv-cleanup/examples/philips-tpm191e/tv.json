@@ -1,0 +1,6 @@
+{
+  "tv": "Philips TPM191E (TP Vision, PH9M_EA_5599, MediaTek mt5887), Europe",
+  "os": "Android TV 12",
+  "brand": "Philips",
+  "notes": "`org.droidtv` TP Vision list on Android 12: DAC analytics uploader, usage logging, demo mode, Top Picks, app gallery; voice, Prime Video, DLNA off by choice; Alexa, Chromecast and updates kept; DTS Play-Fi is re-enabled at every boot by the audio service, so it is left on; `eum` kept, as on the 50PUS8517"
+}

@@ -7,3 +7,8 @@ remote-key.txt
 remote/windows/*.exe
 remote/windows/scrcpy/
 .DS_Store
+tv-cleanup/tools/venv/
+tv-cleanup/tools/adbkey/
+__pycache__/
+backup/
+shots/

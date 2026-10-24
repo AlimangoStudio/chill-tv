@@ -1,0 +1,82 @@
+# Philips 65OLED706/12 (65" 4K OLED, 3-sided Ambilight), France
+# Android TV 11 (SDK 30), firmware RTT2.211108.001 build 21029, security patch 2025-10-01, board PH1M_EA_9970A
+# ro.product.model=2021/22 Philips UHD Android TV  ro.product.device=PH1M_EA_9970A
+# Fingerprint: Philips/PH1M_EA_9970A/PH1M_EA_9970A:11/RTT2.211108.001/21029:user/release-keys
+# MediaTek MT5895, 2.7 GB RAM, 1920x1080 UI. Connected over Ethernet.
+#
+# Same board AND same firmware build as examples/philips-50pus8517 and examples/philips-55oled707. Read the
+# 50PUS8517 quirks and its DO NOT DISABLE block first: they apply here as written, and nothing in that block is
+# disabled below (xtv, eum, aurora, playtv, nettvbrowser, browser engine, Ambilight, remote, firmware update...).
+#
+# Apply:   TV_HOST=<tv ip> tools/disable.sh examples/philips-65oled706/debloat.txt
+# Undo:    TV_HOST=<tv ip> tools/restore.sh examples/philips-65oled706/debloat.txt com.google.android.tvlauncher
+# Everything is DISABLED, not uninstalled. Comment out any line you want to keep.
+#
+# Stock launcher: com.google.android.tvlauncher
+# Live TV app:    org.droidtv.playtv (set live_tv_package to it; the Inputs menu then lists HDMI 1-4, the analog
+#                 inputs and Live TV, and switching to an HDMI input opens it in playtv)
+#
+# What this unit adds to the 50PUS8517 / 55OLED707 notes:
+#
+# 1. Already disabled at the factory on this French unit: the UK Freeview apps (uk.co.freeview.*,
+#    org.droidtv.freeviewplayers), Apple TV, YouTube Music AND org.droidtv.aurora. The 50PUS8517 notes say a
+#    disabled aurora leaves xtv retrying every 201 ms; on this unit an idle 30 s log shows 0 handleConnectAurora
+#    and 0 connectCotextService lines, so aurora was left as the factory set it.
+# 2. Packages the earlier lists do not have, checked with `dumpsys package` (none launched):
+#    org.droidtv.astrahdplus (HD+ German satellite info pages), io.mimi.tvapp + io.mimi.sdk.service (Mimi
+#    hearing-personalised sound), org.droidtv.dropboxprovider (Dropbox in Media). All three disabled cleanly;
+#    sound, Media and live TV unaffected. Not touched: org.droidtv.fastip (IP channel installer; the 75PUS8505
+#    notes say SOURCES dies without it), org.droidtv.sam / csm (service menus), dukservice, usbbreakin, factory.
+# 3. tools/tv.py (adb_shell) gets no answer until it is accepted at the TV's own "Allow USB debugging?" prompt,
+#    even with the same key the stock adb already uses; tools/theme.sh hangs on it until then. The stock adb works.
+# 4. OLED screensaver: tvsystemui draws a moving Philips logo over everything after about 5 minutes of a still
+#    picture, and once it is up it stays on top of the launcher's own idle clock. home_idle_clock_minutes must
+#    therefore be 4 or less here; with the clock already up (it moves every minute) the logo did not come back
+#    in more than 7 minutes. Injected keys over adb do not dismiss the logo, and the shell cannot write to the
+#    remote's input device on this firmware (sendevent: Permission denied), so test it with the real remote.
+# 5. The TV powers on to the last source in use: switched off from Home it comes back on Home, switched off on
+#    an HDMI input it comes back on that input. Nothing to fix.
+# 6. Chromecast (mediashell) re-enables itself, as on the 50PUS8517: left out.
+#
+# Verified with the real remote after the list and the launcher: channel change, TV guide, SOURCES drawer and
+# HDMI switching, sound and Ambilight all work; Home opens the replacement launcher. After a reboot, waiting
+# 15 s first (quirk 1), all 26 packages were still disabled and nothing came back. Free memory at idle on Home:
+# about 780 MB stock, about 1.1 GB with this list and the launcher.
+#
+# Kept on purpose (owner's choice): Google Assistant (katniss), Play-Fi, IP control, DLNA, YouTube, Prime Video.
+
+# TP Vision + Google telemetry. Disable candeebug and gel together (gel runs in candeebug's process).
+org.droidtv.candeebug                     # "DAC" analytics uploader
+org.droidtv.gel                           # metrics collector
+org.droidtv.usagelogger                   # usage and panel telemetry
+com.google.android.feedback
+com.google.android.partnersetup           # partner attribution
+
+# Philips promos, gallery and auto-installs. Disable the row first, then its backend.
+org.droidtv.nettvrecommender              # "Top Picks" row
+org.droidtv.recommendation
+org.droidtv.nettv.market                  # "Collection Smart TV" app store
+org.droidtv.nettvapps                     # app gallery preload installer
+android.autoinstalls.config.tpv.device    # Play auto-install of partner apps
+org.droidtv.astrahdplus                   # HD+ (German satellite operator) info pages
+org.droidtv.m7opapp                       # M7 satellite operator promo; keep if you use one of those operators
+org.droidtv.demome                        # retail demo mode
+
+# Features this owner does not use. Check each against your own setup.
+org.droidtv.amazonalexa                   # Alexa bridge; channel zapping and the guide still work without it
+io.mimi.tvapp                             # Mimi hearing-personalised sound
+io.mimi.sdk.service                       # its audio service; sound unaffected when both are off
+org.droidtv.dropboxprovider               # Dropbox source in Media
+com.google.android.marvin.talkback        # keep if anyone needs the screen reader
+
+# Google setup leftovers and unused apps
+com.google.android.onetimeinitializer
+com.google.android.sss.authbridge         # set-up-from-phone helper
+com.google.android.syncadapters.calendar  # no calendar app on the TV
+com.google.android.play.games
+com.google.android.videos                 # Google TV / Play Movies
+com.netflix.ninja                         # owner's choice (no subscription)
+
+# Stock launcher and its content engine, replaced by launcher/. ORDER MATTERS (50PUS8517): the launcher first.
+# com.google.android.tvlauncher   # launcher/build-and-install.sh disables it after Home has moved
+com.google.android.tvrecommendations      # recommendation rows and the system notification panel

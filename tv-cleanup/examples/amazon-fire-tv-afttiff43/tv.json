@@ -1,0 +1,6 @@
+{
+  "tv": "Amazon Fire TV 50\" 4K smart TV (AFTTIFF43, brandenburg)",
+  "os": "Fire OS 7.7.1.7 / Android 9",
+  "brand": "Amazon Fire TV",
+  "notes": "Done remotely through a Synology subnet router; Toshiba list plus Insignia ad/tracking packages: ACR, metrics, advertising ID, Shopping, demo, tutorials, Music/Photos/Luna/Kids, Alexa extras, Ambient screensaver; four protected packages noted; Alexa core, casting, OTA, Live TV, Silk kept; AdGuard Private DNS works; debloat only"
+}

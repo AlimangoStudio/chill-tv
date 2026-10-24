@@ -1,0 +1,6 @@
+{
+  "tv": "TCL Smart TV Pro (G08, G08_4K_GB, MediaTek), Europe/UK firmware",
+  "os": "Android TV 12",
+  "brand": "TCL",
+  "notes": "Older EU G08 build (STT2.221228.001 AS34): the US list applies only partially — no Samba-ACR ttvs payload, no AirplayAPK, no hotelmenu/TV+/e-sticker preloads, no Android 14 ad services. TCL pushes/demo/help, duplicate webviews, Mediatek casting leftovers, Play Movies, TTS, dreamx, printspooler; suspension/interactive/ttvs listed as DO-NOT-DISABLE (they host the Source-key QuickPanel and the TIAS source overlay — disabling kills the remote Source key, verified fix on a live set); stock launcher kept; debloat only"
+}
