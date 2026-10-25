@@ -417,7 +417,7 @@ namespace ChillTV
         void Menu_(Point p)
         {
             ContextMenuStrip m = new ContextMenuStrip();
-            m.Items.Add("Set TV address and key…", null, delegate { AskSettings(); });
+            m.Items.Add("Pair with a TV (address + code)…", null, delegate { AskSettings(); });
             m.Items.Add("Quit Chill TV Remote", null, delegate { Close(); });
             m.Show(this, p);
         }
@@ -500,9 +500,9 @@ namespace ChillTV
             {
                 f.Text = "Chill TV Remote"; f.FormBorderStyle = FormBorderStyle.FixedDialog; f.MaximizeBox = false; f.MinimizeBox = false;
                 f.StartPosition = FormStartPosition.CenterScreen; f.ClientSize = new Size(360, 190); f.TopMost = true; f.Font = new Font("Segoe UI", 9.5f);
-                Label l = new Label(); l.Text = "TV address on your network (for example 192.168.1.50) and the remote key from showcase\\remote-key.txt."; l.Bounds = new Rectangle(14, 10, 332, 40); f.Controls.Add(l);
+                Label l = new Label(); l.Text = "On the TV open Chill TV: Settings > Remote (Home) or the phone icon (Showcase). Type the TV address, then the pairing code."; l.Bounds = new Rectangle(14, 10, 332, 40); f.Controls.Add(l);
                 TextBox host = new TextBox(); host.Bounds = new Rectangle(14, 56, 332, 24); host.Text = Settings.Host; f.Controls.Add(host);
-                TextBox key = new TextBox(); key.Bounds = new Rectangle(14, 96, 332, 24); key.Text = Settings.Key; key.UseSystemPasswordChar = true; f.Controls.Add(key);
+                TextBox key = new TextBox(); key.Bounds = new Rectangle(14, 96, 332, 24); key.Text = Settings.Key; key.CharacterCasing = CharacterCasing.Upper; f.Controls.Add(key);
                 Button ok = new Button(); ok.Text = "Save"; ok.Bounds = new Rectangle(190, 144, 75, 30); ok.DialogResult = DialogResult.OK; f.Controls.Add(ok);
                 Button cancel = new Button(); cancel.Text = "Cancel"; cancel.Bounds = new Rectangle(271, 144, 75, 30); cancel.DialogResult = DialogResult.Cancel; f.Controls.Add(cancel);
                 f.AcceptButton = ok; f.CancelButton = cancel;

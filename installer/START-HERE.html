@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Install Chill TV</title>
+<style>
+  :root { --page:#FBF8F2; --ink:#1F2A2B; --muted:#55605F; --card:#FFFFFF; --line:#E4DDD0; --accent:#1F6F6A; --tip:#FFF4D6; }
+  @media (prefers-color-scheme: dark) { :root { --page:#141B1C; --ink:#F2EEE6; --muted:#B9C1BF; --card:#1D2627; --line:#33403F; --accent:#57BFB7; --tip:#3A3420; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--page); color:var(--ink); font:18px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width:780px; margin:0 auto; padding:32px 16px 64px; }
+  h1 { font-size:34px; margin:0 0 6px; } h2 { font-size:24px; margin:40px 0 12px; } h3 { font-size:19px; margin:0 0 4px; }
+  p.lead { color:var(--muted); margin:0 0 24px; }
+  .pick { display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:12px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px 18px; }
+  ol.steps { list-style:none; counter-reset:s; padding:0; margin:0; display:grid; gap:12px; }
+  ol.steps > li { counter-increment:s; background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px 18px 14px 64px; position:relative; }
+  ol.steps > li::before { content:counter(s); position:absolute; left:16px; top:14px; width:34px; height:34px; border-radius:50%; background:var(--accent); color:#fff; font-weight:700; display:grid; place-items:center; }
+  .path { font-weight:600; }
+  .tip { background:var(--tip); border-radius:12px; padding:12px 16px; margin-top:12px; }
+  code, .file { font-family:ui-monospace, Consolas, monospace; font-size:.92em; background:color-mix(in srgb, var(--line) 55%, transparent); padding:1px 6px; border-radius:6px; }
+  a { color:var(--accent); }
+  @media print { body { background:#fff; color:#000; } .card, ol.steps > li { break-inside:avoid; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Install Chill TV</h1>
+  <p class="lead">For Android TV boxes such as the Xiaomi Mi Box. No coding needed. It takes about 10 minutes.</p>
+
+  <div class="pick">
+    <div class="card"><h3>Chill TV Home</h3>A calm home screen for the family TV: your apps, clock, weather and a voice assistant.<br>File: <span class="file">ChillTV-Home.apk</span></div>
+    <div class="card"><h3>Chill TV Showcase</h3>A home screen for a shop, clinic or office TV: your photos, ads and music.<br>File: <span class="file">ChillTV-Showcase.apk</span></div>
+  </div>
+
+  <h2>Install with a USB stick</h2>
+  <ol class="steps">
+    <li><b>Copy the kit to a USB stick.</b> Unzip the download, then copy the whole <span class="file">ChillTV-USB-Kit</span> folder onto any USB stick.</li>
+    <li><b>Get a file manager on the TV.</b> On the TV, open <span class="path">Google Play</span>, search for <b>File Commander</b> (free) and install it. Any file manager that can open USB drives works.</li>
+    <li><b>Plug in the USB stick</b> into the TV box, then open <b>File Commander</b>. Choose the USB drive, open <span class="file">ChillTV-USB-Kit</span>, and pick <span class="file">ChillTV-Home.apk</span> or <span class="file">ChillTV-Showcase.apk</span>.</li>
+    <li><b>Allow the install once.</b> The TV says it can't install apps from this source. Choose <span class="path">Settings</span>, turn on <b>Allow from this source</b> for File Commander, then go back and choose <b>Install</b>.
+      <div class="tip">On some boxes this switch is in <span class="path">Settings › Device Preferences › Security &amp; restrictions › Unknown sources</span>.</div></li>
+    <li><b>Make it your home screen.</b> Open <span class="path">Settings › Apps › Default apps › Home app</span> and choose <b>Chill TV</b>. Then press the Home button on the remote.
+      <div class="tip">Many TV boxes don't have a <b>Home app</b> choice. Then Chill TV still works from <span class="path">Apps</span>, and the <b>PC helper</b> below makes it the home screen in two minutes.</div></li>
+  </ol>
+
+  <h2>Make it the home screen with a Windows PC</h2>
+  <ol class="steps">
+    <li><b>Turn on USB debugging on the TV.</b> <span class="path">Settings › Device Preferences › About</span>, press OK on <b>Build</b> 7 times. Then <span class="path">Settings › Device Preferences › Developer options</span> › turn on <b>USB debugging</b>. The TV and the PC must be on the same Wi-Fi.</li>
+    <li><b>Run the helper.</b> In the kit, open <span class="file">PC helper (Windows)</span> and double-click <span class="file">Start Chill TV Helper.cmd</span>. Type the TV's address (in Chill TV <span class="path">Settings › Remote</span>, or the TV's Wi-Fi settings).</li>
+    <li><b>Allow the PC</b> when the TV asks "Allow USB debugging?" (tick <b>Always allow</b>). Then choose <b>1</b> for Home or <b>2</b> for Showcase.</li>
+  </ol>
+  <div class="tip">If the Home button still opens the TV's old screen, run the helper again and choose <b>3</b>. To go back to the TV's own home screen at any time, choose <b>4 (Undo)</b>. When you're done, you can turn USB debugging off again.</div>
+
+  <h2>Control the TV from your laptop (optional)</h2>
+  <ol class="steps">
+    <li>Open <span class="file">Remote for Windows › ChillRemote.exe</span>. Windows may say it's from an unknown publisher: choose <b>More info › Run anyway</b>.</li>
+    <li>Right-click the round remote › <b>Pair with a TV</b>. Type the TV address and the <b>pairing code</b> shown on the TV: Chill TV Home <span class="path">Settings › Remote</span>, or the phone icon on Chill TV Showcase. Every TV has its own code.</li>
+  </ol>
+
+  <h2>Remove Chill TV</h2>
+  <p>If you used the PC helper, run it once more and choose <b>4 (Undo)</b>. Then remove the app in <span class="path">Settings › Apps › Chill TV › Uninstall</span>.</p>
+
+  <p class="lead" style="margin-top:40px">Chill TV is free and open source (MIT licence): <a href="https://github.com/AlimangoStudio/chill-tv">github.com/AlimangoStudio/chill-tv</a>. Made by Alimango Studio.</p>
+</main>
+</body>
+</html>

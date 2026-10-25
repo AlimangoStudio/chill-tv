@@ -19,7 +19,7 @@ import java.util.Map;
 
 /**
  * Remote control for the TV (the Mac dock app, or the page at "/"). Plain HTTP on port 8765, reached over the
- * local network or a private VPN such as Tailscale. Every request must carry the key from res/values/remote.xml (?k=...). The thread blocks
+ * local network or a private VPN such as Tailscale. Every request must carry the TV's pairing code (?k=..., see PairingCode). The thread blocks
  * in accept() between requests, so it costs no CPU while nobody is using the remote.
  */
 final class RemoteServer extends Thread {
@@ -33,7 +33,7 @@ final class RemoteServer extends Thread {
         super("ChillTV-remote");
         setDaemon(true);
         this.app = app.getApplicationContext();
-        this.key = app.getString(R.string.remote_key).getBytes(StandardCharsets.UTF_8);
+        this.key = PairingCode.get(app).getBytes(StandardCharsets.UTF_8);
     }
 
     static synchronized void ensureStarted(Context c) {
@@ -157,9 +157,12 @@ final class RemoteServer extends Thread {
     }
 
     private boolean keyOk(String given) {
-        // An unset key (the CHANGE-ME placeholder) locks the remote instead of letting anyone in.
-        if (given == null || new String(key, StandardCharsets.UTF_8).equals("CHANGE-ME")) return false;
-        return MessageDigest.isEqual(key, given.getBytes(StandardCharsets.UTF_8));
+        // The code is never empty or the CHANGE-ME placeholder (PairingCode makes one per TV). Codes are typed in
+        // capitals on the TV screen; accept them in any case and with the dash shown there.
+        if (given == null || key.length == 0) return false;
+        String typed = given.trim().replace("-", "").replace(" ", "").toUpperCase(java.util.Locale.ROOT);
+        return MessageDigest.isEqual(key, typed.getBytes(StandardCharsets.UTF_8))
+                || MessageDigest.isEqual(key, given.getBytes(StandardCharsets.UTF_8));
     }
 
     private static Map<String, String> params(String query) throws Exception {

@@ -12,3 +12,4 @@ tv-cleanup/tools/adbkey/
 __pycache__/
 backup/
 shots/
+dist/

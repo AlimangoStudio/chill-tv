@@ -300,6 +300,7 @@ nav#tiles .tw.bounce .tile{animation:dockBounce .85s cubic-bezier(.3,.7,.4,1)}
 #voiceToast{bottom:300px}
 
 /* ---------- settings: location + alarm ---------- */
+.pair{margin:6px 0 0;font-size:18px;color:var(--muted)}.pair b{color:var(--ink);font-weight:700;letter-spacing:.08em}
 .short.wide small{font-size:15px;color:var(--muted);max-width:90%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .alarmline{color:var(--accent);font-weight:600}
 .modal{position:absolute;inset:0;display:none;background:rgba(10,20,22,.5);animation:fadeIn .25s ease both;align-items:center;justify-content:center}
@@ -536,6 +537,9 @@ nav#tiles .tw::after{bottom:-8px;width:5px;height:5px;margin-left:-2.5px}
           <span>Names</span><small id="scNamesVal">My Home</small>
         </div>
       </div>
+      <!-- Pairing for the phone/laptop remote: each TV makes its own code (PairingCode.java). -->
+      <div class="sec" style="margin-top:12px">Remote</div>
+      <p class="pair" id="pairLine">Pairing code <b id="pairCode">—</b> · TV address <b id="pairAddr">—</b></p>
     </div>
   </div>
 
@@ -823,7 +827,17 @@ nav#tiles .tw::after{bottom:-8px;width:5px;height:5px;margin-left:-2.5px}
   function openPrefs() {
     zone = 'prefs'; pi = theme === 'teal' ? 0 : 1;
     prefs.classList.add('open');
+    showPairing();
     renderPrefs(); render();
+  }
+  // Settings -> Remote: the code and address the phone or laptop remote asks for.
+  function showPairing() {
+    if (!(window.TV && TV.remotePairing)) return;
+    try {
+      var p = JSON.parse(TV.remotePairing());
+      setText('pairCode', p.code.length === 8 ? p.code.slice(0, 4) + '-' + p.code.slice(4) : p.code);
+      setText('pairAddr', p.address ? p.address : 'not on a network yet');
+    } catch (e) { /* keep the dashes */ }
   }
   function closePrefs() {
     prefs.classList.remove('open');

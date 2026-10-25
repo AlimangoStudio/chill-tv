@@ -363,6 +363,13 @@ public class MainActivity extends Activity {
     }
 
     class Bridge {
+        /** {"code":"ABCD2345","address":"192.168.1.20","port":8765} for Settings -> Remote (see PairingCode). */
+        @JavascriptInterface
+        public String remotePairing() {
+            return "{\"code\":\"" + PairingCode.get(MainActivity.this) + "\",\"address\":\"" + PairingCode.address()
+                    + "\",\"port\":" + RemoteServer.PORT + "}";
+        }
+
         @JavascriptInterface
         public boolean has(String pkg) {
             return launchIntent(pkg) != null;

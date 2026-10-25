@@ -12,6 +12,15 @@ There are two styles, plus a remote for your computer.
 | Remote | Mac, Windows and browser remote, with keyboard-and-mouse Computer mode and voice commands through the laptop's mic ("TV, open Netflix") | The same, plus Reel, Idle and Music buttons |
 | You set | Home name, assistant name, location (all in Settings on the TV) | Business name, tagline, website, slides, ads, music, reels, location (in `config.js`) |
 
+## Easy install (no coding)
+
+1. Download **[ChillTV-USB-Kit.zip](https://github.com/AlimangoStudio/chill-tv/releases/latest/download/ChillTV-USB-Kit.zip)** and unzip it.
+2. Copy the `ChillTV-USB-Kit` folder to a USB stick and follow `START-HERE.html` inside it.
+
+The kit holds both apps, a step-by-step guide, a Windows helper that makes Chill TV the home screen over Wi-Fi (with an
+Undo), and the Windows remote. Every TV makes its own remote pairing code on first start, shown in Chill TV Home's
+Settings › Remote or behind the phone icon in Showcase. To build the kit yourself: `installer\make-usb-kit.ps1`.
+
 ## Screenshots
 
 **Chill TV Home** (teal and pastel themes)

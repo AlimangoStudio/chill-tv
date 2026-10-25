@@ -48,7 +48,7 @@ final class TV: ObservableObject {
             let st = data.flatMap { try? JSONDecoder().decode(TVStatus.self, from: $0) }
             DispatchQueue.main.async {
                 if err != nil || code == 0 { self.online = false; self.note = "TV not reachable (is it on?)"; return }
-                if code == 403 { self.online = false; self.note = "Wrong key"; return }
+                if code == 403 { self.online = false; self.note = "Wrong pairing code (see Chill TV on the TV)"; return }
                 self.online = true
                 self.note = st?.note ?? ""
                 if let v = st?.volume { self.volume = v }
