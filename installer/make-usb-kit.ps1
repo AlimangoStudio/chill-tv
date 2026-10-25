@@ -19,8 +19,11 @@ Copy-Item (Join-Path $PSScriptRoot 'START-HERE.html') $kit
 Copy-Item (Join-Path $PSScriptRoot 'windows\ChillTV-Helper.ps1'), (Join-Path $PSScriptRoot 'windows\Start Chill TV Helper.cmd') "$kit\PC helper (Windows)"
 Copy-Item (Join-Path $repo 'remote\windows\ChillRemote.exe') "$kit\Remote for Windows"
 Copy-Item (Join-Path $repo 'LICENSE') "$kit\LICENSE.txt"
+# TV models: CleanYourTV's checked lists (MIT), built by installer\models\build_models.py into installer\models\catalog.
+Copy-Item -Recurse (Join-Path $PSScriptRoot 'models\catalog') "$kit\TV models"
 
 $zip = Join-Path $dist 'ChillTV-USB-Kit.zip'
+Copy-Item (Join-Path $PSScriptRoot 'models\catalog\models.json') (Join-Path $dist 'models.json')
 if (Test-Path $zip) { Remove-Item -Force $zip }
 Compress-Archive -Path $kit -DestinationPath $zip
 $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()

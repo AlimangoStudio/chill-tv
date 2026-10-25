@@ -27,7 +27,7 @@
 <body>
 <main>
   <h1>Install Chill TV</h1>
-  <p class="lead">For Android TV boxes such as the Xiaomi Mi Box. No coding needed. It takes about 10 minutes.</p>
+  <p class="lead">For Android TV and Google TV boxes and TVs. No coding needed. It takes about 10 minutes. Steps and notes for your TV model: <a href="https://alimango.app/chill-tv">alimango.app/chill-tv</a>.</p>
 
   <div class="pick">
     <div class="card"><h3>Chill TV Home</h3>A calm home screen for the family TV: your apps, clock, weather and a voice assistant.<br>File: <span class="file">ChillTV-Home.apk</span></div>
@@ -49,9 +49,10 @@
   <ol class="steps">
     <li><b>Turn on USB debugging on the TV.</b> <span class="path">Settings › Device Preferences › About</span>, press OK on <b>Build</b> 7 times. Then <span class="path">Settings › Device Preferences › Developer options</span> › turn on <b>USB debugging</b>. The TV and the PC must be on the same Wi-Fi.</li>
     <li><b>Run the helper.</b> In the kit, open <span class="file">PC helper (Windows)</span> and double-click <span class="file">Start Chill TV Helper.cmd</span>. Type the TV's address (in Chill TV <span class="path">Settings › Remote</span>, or the TV's Wi-Fi settings).</li>
-    <li><b>Allow the PC</b> when the TV asks "Allow USB debugging?" (tick <b>Always allow</b>). Then choose <b>1</b> for Home or <b>2</b> for Showcase.</li>
+    <li><b>Allow the PC</b> when the TV asks "Allow USB debugging?" (tick <b>Always allow</b>). Newer TVs ask for a <b>pairing code</b> instead: the helper shows you where to find it.</li>
+    <li><b>Pick your TV model</b> from the list the helper suggests, then choose <b>1</b> for Home or <b>2</b> for Showcase.</li>
   </ol>
-  <div class="tip">If the Home button still opens the TV's old screen, run the helper again and choose <b>3</b>. To go back to the TV's own home screen at any time, choose <b>4 (Undo)</b>. When you're done, you can turn USB debugging off again.</div>
+  <div class="tip">If the Home button still opens the TV's old screen, choose <b>3</b>. To remove ads and slow preinstalled apps, choose <b>4</b>: it uses the list people with your TV model checked, and only switches apps off. <b>5 (Undo)</b> turns everything back on. When you're done, you can turn USB debugging off again.</div>
 
   <h2>Control the TV from your laptop (optional)</h2>
   <ol class="steps">
@@ -60,9 +61,9 @@
   </ol>
 
   <h2>Remove Chill TV</h2>
-  <p>If you used the PC helper, run it once more and choose <b>4 (Undo)</b>. Then remove the app in <span class="path">Settings › Apps › Chill TV › Uninstall</span>.</p>
+  <p>If you used the PC helper, run it once more and choose <b>5 (Undo)</b>. Then remove the app in <span class="path">Settings › Apps › Chill TV › Uninstall</span>.</p>
 
-  <p class="lead" style="margin-top:40px">Chill TV is free and open source (MIT licence): <a href="https://github.com/AlimangoStudio/chill-tv">github.com/AlimangoStudio/chill-tv</a>. Made by Alimango Studio.</p>
+  <p class="lead" style="margin-top:40px">Chill TV is free and open source (MIT licence): <a href="https://github.com/AlimangoStudio/chill-tv">github.com/AlimangoStudio/chill-tv</a>. Made by Alimango Studio. The TV model lists in <span class="file">TV models</span> come from <a href="https://github.com/Gathin23/cleanyourtv">CleanYourTV</a> (MIT licence, © 2026 Gathin), checked by people who own each TV.</p>
 </main>
 </body>
 </html>
