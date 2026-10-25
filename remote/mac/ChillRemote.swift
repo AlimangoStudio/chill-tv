@@ -126,7 +126,7 @@ final class Voice: ObservableObject {
         add("/api/key?code=up", ["up"]); add("/api/key?code=down", ["down"])
         add("/api/key?code=left", ["left"]); add("/api/key?code=right", ["right"])
         add("/api/key?code=ok", ["ok", "okay", "select", "enter"])
-        add("/api/reel", ["reel", "show reel", "clinic reel"])
+        add("/api/reel", ["reel", "show reel"])
         add("/api/showcase", ["idle", "showcase"])
         add("/api/music?on=1", ["music on"]); add("/api/music?on=0", ["music off"])
         add("voice-off", ["stop listening"])

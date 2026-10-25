@@ -6,7 +6,7 @@ There are two styles, plus a remote for your computer.
 | | **Chill TV Home** | **Chill TV Showcase** |
 |---|---|---|
 | For | A family TV | A shop, salon, office or waiting room |
-| Home screen | Greeting with your home's name, weather, clock, app dock, top picks | Your ads in a big centre card, app dock, clock |
+| Home screen | Clean, like macOS: your pictures as a slowly fading wallpaper, weather and clock on top, a small MacBook-style app dock | Your ads in a big centre card, app dock, clock |
 | When idle | Clock screensaver with an alarm | Full-screen slides about your business |
 | Extras | Voice assistant with a name you choose ("Max, open Netflix"), alarm that wakes the TV, two themes | Quiet classical background music, a reel of your videos |
 | Remote | Mac, Windows and browser remote, with keyboard-and-mouse Computer mode and voice commands through the laptop's mic ("TV, open Netflix") | The same, plus Reel, Idle and Music buttons |
@@ -58,10 +58,13 @@ The first build makes your own `signing.keystore`. Keep it, because updates must
 ### Chill TV Home: settings on the TV
 
 Open the settings panel from the home screen:
-- **Names**: your home's name (shown on the home screen and clock) and the assistant's name. The assistant's name is the word you say before a command.
+- **Names**: your home's name (shown on the clock screensaver) and the assistant's name. The assistant's name is the word you say before a command.
 - **Location**: pick a city or type one. It sets the weather and the time zone.
 - **Alarm**: set a wake-up time. The TV turns on and rings.
 - **Theme**: Teal or Pastel.
+
+**Wallpapers**: Home shows the pictures listed in `WALLPAPERS` at the top of the script in [`home/app/assets/index.html`](home/app/assets/index.html), full screen, with a soft 2.5 s fade every 30 s (`WALL_SECONDS`). Two calm gradients are included (`wall1.jpg`, `wall2.jpg`). To use your own photos, put 1920×1080 JPEGs in `home/app/assets/`, list them in `WALLPAPERS`, and build. Use pictures you own or may share. Keep them 1920×1080 even for 4K files: most TV boxes show the home screen at 1080p, and smaller files fade more smoothly.
+The top bar holds the Google G, the USB button (only while a drive is plugged in) and the location, weather and clock panel; Wi-Fi and the microphone are in the TV's own Settings, and the remote's mic button still reaches the assistant.
 
 ### Chill TV Showcase: your business in `config.js`
 

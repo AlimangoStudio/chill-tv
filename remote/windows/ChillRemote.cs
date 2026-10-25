@@ -118,7 +118,7 @@ namespace ChillTV
             add("/api/key?code=left", new[] { "left" });
             add("/api/key?code=right", new[] { "right" });
             add("/api/key?code=ok", new[] { "ok", "okay", "select", "enter" });
-            add("/api/reel", new[] { "reel", "show reel", "clinic reel" });
+            add("/api/reel", new[] { "reel", "show reel" });
             add("/api/showcase", new[] { "idle", "showcase" });
             add("/api/music?on=1", new[] { "music on" });
             add("/api/music?on=0", new[] { "music off" });

@@ -390,36 +390,56 @@ nav#tiles::before{box-shadow:0 8px 24px rgba(60,40,90,.14)}
 .seg.on i{animation:none!important;transform:none}
 #orb:not(.open){visibility:hidden;transition:opacity .35s ease,visibility 0s linear .35s}
 #orb:not(.open) .swirl,#orb:not(.open) .orbcore,#orb:not(.open) .orbwrap::after{animation:none!important}
+/* ---------- clean, like macOS ---------- */
+/* The WALLPAPERS pictures fill the screen, one soft fade every WALL_SECONDS; no centre card. The top bar and the dock
+   are quiet glass over the picture. No live blur: TV boxes often paint in software (see lite mode above). */
+.orb,.hero{display:none!important}
+#wall{position:absolute;inset:0;overflow:hidden;background:#0d1622}
+#wall .wp{position:absolute;inset:0;background-size:cover;background-position:center;opacity:0;transition:opacity 2.5s ease;will-change:opacity}
+#wall .wp.on{opacity:1}
+#wall .scrim{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.36) 0%,rgba(0,0,0,0) 20%,rgba(0,0,0,0) 60%,rgba(0,0,0,.4) 100%)}
+header,nav#tiles,#voiceToast{--ink:#FFFFFF;--muted:rgba(255,255,255,.8);--divider:rgba(255,255,255,.24);--cloud-fill:rgba(255,255,255,.18);
+  --chip-bg:rgba(16,20,28,.36);--chip-border:1px solid rgba(255,255,255,.24);--chip-shadow:0 8px 24px rgba(0,0,0,.18);
+  --panel-bg:rgba(16,20,28,.36);--panel-border:1px solid rgba(255,255,255,.24);--panel-shadow:0 8px 24px rgba(0,0,0,.18);
+  --focus-ring:0 0 0 4px rgba(255,255,255,.95)}
+header{color:#fff;text-shadow:0 1px 10px rgba(0,0,0,.35)}
+.gchip{width:68px;height:68px;border-radius:50%;background:rgba(255,255,255,.94);display:flex;align-items:center;justify-content:center;
+  box-shadow:0 8px 24px rgba(0,0,0,.22)}
+body.teal nav#tiles::before,body.pastel nav#tiles::before{background:linear-gradient(180deg,rgba(255,255,255,.28),rgba(255,255,255,.14));
+  border-color:rgba(255,255,255,.4);box-shadow:0 10px 30px rgba(0,0,0,.25)}
+body.pastel nav#tiles .tile.on,nav#tiles .tile.on{outline-color:rgba(255,255,255,.95)}
+#voiceToast{background:rgba(16,20,28,.72)!important;color:#fff}
+/* A smaller dock low on the screen, like a MacBook's. Tile size and gap also live in render(). */
+nav#tiles{bottom:28px!important;height:104px!important;padding:12px 16px!important;gap:12px!important}
+nav#tiles::before{border-radius:26px!important}
+/* dark glass, like the macOS dock in dark mode: it reads over busy, bright photos too */
+body.teal nav#tiles::before,body.pastel nav#tiles::before{background:linear-gradient(180deg,rgba(30,34,44,.66),rgba(18,22,30,.74));
+  border:1px solid rgba(255,255,255,.3);box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 10px 30px rgba(0,0,0,.3)}
+nav#tiles .tw{width:120px!important;height:80px!important}
+nav#tiles .tile{border-radius:16px!important}
+nav#tiles .tile.on{outline-width:3px;outline-offset:2px}
+nav#tiles .tlabel{bottom:calc(100% + 12px);padding:6px 14px;font-size:17px;border-radius:10px}
+nav#tiles .tw::after{bottom:-8px;width:5px;height:5px;margin-left:-2.5px}
+#voiceToast{bottom:200px}
 </style>
 </head>
 <body class="teal">
 <div id="stage">
-  <div class="orb a orb1" aria-hidden="true"></div>
-  <div class="orb b orb2" aria-hidden="true"></div>
-  <div class="orb a orb3" aria-hidden="true"></div>
+  <!-- Wallpapers (WALLPAPERS in the script) cross-fade slowly behind everything -->
+  <div id="wall" aria-hidden="true"><div class="scrim"></div></div>
 
   <header>
     <div class="who">
-      <div class="acct">
-        <span class="avatar" id="avatar">M</span>
-        <span style="display:flex;flex-direction:column;align-items:flex-start;gap:2px"><span class="n" id="homeNameChip">My Home</span><span class="s">Chill TV</span></span>
+      <div class="gchip" aria-label="Google">
+        <svg width="34" height="34" viewBox="0 0 48 48" aria-hidden="true">
+          <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+          <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+          <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+          <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+        </svg>
       </div>
     </div>
     <div class="side">
-      <div class="chip" id="micChip" aria-label="Voice: say open an app">
-        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/>
-        </svg>
-      </div>
-      <div class="chip off" id="wifiChip" aria-label="Wi-Fi">
-        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path class="arc a3" d="M2 8.5a15 15 0 0 1 20 0"/>
-          <path class="arc a2" d="M5 12a10.5 10.5 0 0 1 14 0"/>
-          <path class="arc a1" d="M8.5 15.5a5.5 5.5 0 0 1 7 0"/>
-          <circle cx="12" cy="19" r="1.2" fill="currentColor"/>
-          <path class="slash" d="M3 3l18 18"/>
-        </svg>
-      </div>
       <div class="chip" id="usbChip" aria-label="USB" hidden>
         <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <circle cx="12" cy="20" r="1.8"/><path d="M12 18.2V3.5M12 3.5l-2.2 2.6M12 3.5l2.2 2.6"/>
@@ -451,21 +471,6 @@ nav#tiles::before{box-shadow:0 8px 24px rgba(60,40,90,.14)}
     </div>
   </header>
 
-  <section class="hero">
-    <div class="greet-wrap">
-      <div class="emblem">
-        <div class="glow" aria-hidden="true"></div>
-        <svg width="184" height="184" viewBox="0 0 220 220" fill="none" aria-hidden="true" style="position:relative" id="emblem"></svg>
-      </div>
-      <div class="greeting" id="greeting">Hello,</div>
-      <div class="wordmark" id="wordmark">My Home</div>
-    </div>
-    <div class="carousel" id="carousel">
-      <div id="slides"></div>
-      <div class="segs" id="segs"></div>
-      <div class="pill">TOP PICKS</div>
-    </div>
-  </section>
 
   <nav id="tiles"></nav>
 
@@ -615,6 +620,12 @@ nav#tiles::before{box-shadow:0 8px 24px rgba(60,40,90,.14)}
 
   // ---------- names (Settings -> Names) ----------
   var HOME_NAME = 'My Home', ASSIST = 'Max';
+
+  // ---------- wallpapers ----------
+  // Pictures in app/assets, shown full screen and cross-faded every WALL_SECONDS. Put your own photos (1920x1080 JPEG)
+  // next to index.html and list them here; one picture just stays.
+  var WALLPAPERS = ['wall1.jpg', 'wall2.jpg'];
+  var WALL_SECONDS = 30;
   try { HOME_NAME = localStorage.getItem('homeName') || HOME_NAME; ASSIST = localStorage.getItem('assistantName') || ASSIST; } catch (e) {}
 
   // ---------- location (Settings -> Location, or "set location to ...") ----------
@@ -652,7 +663,6 @@ nav#tiles::before{box-shadow:0 8px 24px rgba(60,40,90,.14)}
 
   function applyTheme() {
     document.body.className = theme;
-    document.getElementById('emblem').innerHTML = EMBLEM[theme];
     tiles.forEach(function (t) { if (!t.logo) t.el.style.background = theme === 'pastel' ? PASTEL_TILE[t.key] : ''; });
     Array.prototype.forEach.call(document.querySelectorAll('.opt'), function (o) {
       o.classList.toggle('sel', o.getAttribute('data-theme') === theme);
@@ -732,60 +742,38 @@ nav#tiles::before{box-shadow:0 8px 24px rgba(60,40,90,.14)}
     else TV.launch(a.pkg);
   }
 
-  // ---------- top picks carousel ----------
-  var SLIDES = [
-    { key: 'nf', tint: 't1', kicker: 'Top on Netflix', title: 'Netflix', line: 'Movies & series · Press OK to open' },
-    { key: 'pv', tint: 't2', kicker: 'Top on Prime Video', title: 'Prime Video', line: 'Originals & blockbusters · Press OK to open' },
-    { key: 'hb', tint: 't4', kicker: 'New on HBO Max', title: 'HBO Max', line: 'HBO, DC & more · Press OK to open' },
-    { key: 'ds', tint: 't3', kicker: 'Top on Disney+', title: 'Disney+', line: 'Disney, Pixar, Marvel · Press OK to open' },
-    { key: 'yt', tint: 't1', kicker: 'Trending on YouTube', title: 'YouTube', line: 'Videos & music · Press OK to open' },
-    { key: 'gp', tint: 't2', kicker: 'Get more apps', title: 'Google Play', line: 'Apps & games for your TV · Press OK to open' }
-  ];
-  var slidesEl = document.getElementById('slides');
-  var segsEl = document.getElementById('segs');
-  SLIDES.forEach(function (s) {
-    var app = APPS.filter(function (a) { return a.key === s.key; })[0];
-    s.app = app;
+  // ---------- wallpaper: one 2.5 s opacity fade every WALL_SECONDS, then the screen is still ----------
+  var wallEl = document.getElementById('wall');
+  var walls = WALLPAPERS.map(function (src, i) {
     var d = document.createElement('div');
-    d.className = 'slide ' + s.tint;
-    var art = TV.banner(app.pkg);
-    d.innerHTML = '<div class="kb" aria-hidden="true"></div><div class="fade" aria-hidden="true"></div>' +
-      (art ? '<div class="art"><img alt="" src="' + art + '"></div>' : '') +
-      '<div class="cap"><div class="kicker">' + s.kicker + '</div><div class="ctitle">' + s.title + '</div><div class="cline">' + s.line + '</div></div>';
-    slidesEl.appendChild(d);
-    s.el = d;
+    d.className = 'wp' + (i === 0 ? ' on' : '');
+    d.style.backgroundImage = 'url(' + src + ')';
+    wallEl.insertBefore(d, wallEl.lastChild);
+    return d;
   });
-
-  var idx = 0, rot = null;
-  function showSlide(n) {
-    idx = (n + SLIDES.length) % SLIDES.length;
-    SLIDES.forEach(function (s, i) { s.el.className = 'slide ' + s.tint + (i === idx ? ' on' : ''); });
-    segsEl.innerHTML = SLIDES.map(function (s, i) {
-      return '<span class="seg ' + (i < idx ? 'done' : i === idx ? 'on' : '') + '"><i></i></span>';
-    }).join('');
-  }
-  function restartRotation() {
-    if (rot) clearInterval(rot);
-    rot = setInterval(function () { showSlide(idx + 1); }, 8000);
-  }
+  var wallIdx = 0;
+  if (walls.length > 1) setInterval(function () {
+    if (document.hidden) return;              // nothing to paint while an app is in front
+    walls[wallIdx].classList.remove('on');
+    wallIdx = (wallIdx + 1) % walls.length;
+    walls[wallIdx].classList.add('on');
+  }, WALL_SECONDS * 1000);
 
   // ---------- focus / remote ----------
   var zone = 'tiles', ti = 0, hi = 0;
-  var carousel = document.getElementById('carousel');
-  var micChip = document.getElementById('micChip');
-  var wifiChip = document.getElementById('wifiChip');
   var usbChip = document.getElementById('usbChip');
   var wxPanel = document.querySelector('.panel');
   function headerItems() {
-    var items = [{ el: micChip, go: function () { TV.listen(); } }, { el: wifiChip, go: function () { TV.openWifi(); } }];
+    // No mic or Wi-Fi buttons: both are in the TV's Settings, and the remote's mic still reaches the assistant.
+    var items = [];
     if (!usbChip.hidden) items.push({ el: usbChip, go: function () { TV.openStorage(); } });
     items.push({ el: wxPanel, go: function () { openWx(); } });
     return items;
   }
   // Dock magnification: size falls off with distance from the focused tile (Gaussian, like the macOS dock).
   // Off the dock (hero, header, panels) every tile rests at the base size.
-  var DOCK_W = 168, DOCK_H = 112, DOCK_GROW = 0.46, DOCK_SPREAD = 1.6;
-  var DOCK_GAP = 16;
+  var DOCK_W = 120, DOCK_H = 80, DOCK_GROW = 0.5, DOCK_SPREAD = 1.6;
+  var DOCK_GAP = 12, DOCK_PAD = 32;   // tile size, gap and side padding, as in the dock CSS
   function render() {
     // Lay the magnified tiles out on paper, then move each one there with a GPU transform (no relayout).
     var scales = tiles.map(function (t, i) {
@@ -807,17 +795,13 @@ nav#tiles::before{box-shadow:0 8px 24px rgba(60,40,90,.14)}
       t.label.style.transform = on ? 'translateX(-50%) scale(' + (1 / s).toFixed(3) + ')' : '';
       w.classList.toggle('focus', on);
     });
-    nav.style.setProperty('--bar', ((grown + 44) / (base + 44)).toFixed(3));
-    carousel.classList.toggle('focus', zone === 'hero');
+    nav.style.setProperty('--bar', ((grown + DOCK_PAD) / (base + DOCK_PAD)).toFixed(3));
     var hs = headerItems();
     if (hi >= hs.length) hi = hs.length - 1;
-    [micChip, wifiChip, usbChip, wxPanel].forEach(function (el) { el.classList.toggle('on', zone === 'header' && hs[hi] && hs[hi].el === el); });
+    [usbChip, wxPanel].forEach(function (el) { el.classList.toggle('on', zone === 'header' && hs[hi] && hs[hi].el === el); });
   }
   function focusTile(i) {
     ti = Math.max(0, Math.min(tiles.length - 1, i));
-    var n = -1;
-    SLIDES.forEach(function (s, k) { if (s.key === tiles[ti].key) n = k; });
-    if (n >= 0 && n !== idx) { showSlide(n); restartRotation(); }
     render();
   }
 
@@ -1027,9 +1011,6 @@ nav#tiles::before{box-shadow:0 8px 24px rgba(60,40,90,.14)}
     return new RegExp('^' + lead + '(hey |hi |ok |okay )?' + (name ? '(' + name + ')' : '(?!)') + (tail || '\\b'), 'i');
   }
   function applyNames() {
-    setText('wordmark', HOME_NAME);
-    setText('homeNameChip', HOME_NAME);
-    setText('avatar', HOME_NAME.trim().charAt(0).toUpperCase() || 'M');
     setText('scNamesVal', HOME_NAME + ' · ' + ASSIST);
     [].forEach.call(document.querySelectorAll('.aname'), function (el) { el.textContent = ASSIST; });
     document.title = HOME_NAME + ' · Chill TV';
@@ -1167,21 +1148,13 @@ nav#tiles::before{box-shadow:0 8px 24px rgba(60,40,90,.14)}
       var hs = headerItems();
       if (left) { hi = Math.max(0, hi - 1); render(); }
       else if (right) { hi = Math.min(hs.length - 1, hi + 1); render(); }
-      else if (down) { zone = 'hero'; render(); }
-      else if (ok && hs[hi]) hs[hi].go();
-      return;
-    }
-    if (zone === 'hero') {
-      if (left) { showSlide(idx - 1); restartRotation(); }
-      else if (right) { showSlide(idx + 1); restartRotation(); }
-      else if (up) { zone = 'header'; hi = 0; render(); }
       else if (down) { zone = 'tiles'; render(); }
-      else if (ok) activate(SLIDES[idx].app);
+      else if (ok && hs[hi]) hs[hi].go();
       return;
     }
     if (left) focusTile(ti - 1);
     else if (right) focusTile(ti + 1);
-    else if (up) { zone = 'hero'; render(); }
+    else if (up) { zone = 'header'; hi = headerItems().length - 1; render(); }
     else if (ok) launchFromDock(ti);
   }
 
@@ -1216,22 +1189,13 @@ nav#tiles::before{box-shadow:0 8px 24px rgba(60,40,90,.14)}
     function p(t) { var f = parts.filter(function (x) { return x.type === t; })[0]; return f ? f.value : ''; }
     document.getElementById('time').textContent = p('hour') + ':' + p('minute');
     document.getElementById('ampm').textContent = p('dayPeriod');
-    var h = Number(new Intl.DateTimeFormat('en-US', { timeZone: TZ, hour: 'numeric', hourCycle: 'h23' }).format(now));
-    document.getElementById('greeting').textContent = (h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening') + ',';
     document.getElementById('date').textContent = new Intl.DateTimeFormat('en-US', { timeZone: TZ, weekday: 'long', month: 'long', day: 'numeric' }).format(now);
   }
 
-  // ---------- Wi-Fi / USB status chips ----------
+  // ---------- USB status chip ----------
   function updateStatus() {
-    var w = {}, u = {};
-    try { w = JSON.parse(TV.wifi()); } catch (e) {}
+    var u = {};
     try { u = JSON.parse(TV.usb()); } catch (e) {}
-    wifiChip.classList.toggle('off', !w.connected);
-    var lvl = w.connected ? w.level : 3;
-    ['a1', 'a2', 'a3'].forEach(function (c, i) {
-      var arc = wifiChip.querySelector('.' + c);
-      arc.setAttribute('class', 'arc ' + c + (w.connected && lvl < i + 1 ? ' dim' : ''));
-    });
     var drives = u.storage || [];
     var hadUsb = !usbChip.hidden;
     usbChip.hidden = !(drives.length || u.devices);
@@ -1340,6 +1304,8 @@ nav#tiles::before{box-shadow:0 8px 24px rgba(60,40,90,.14)}
     };
     x.onerror = x.ontimeout = function () {
       if (document.getElementById('temp').textContent === '--°') document.getElementById('wxLine').textContent = 'Weather unavailable';
+      // The box often wakes before its Wi-Fi does: try again in a minute rather than waiting for the 30-minute refresh.
+      setTimeout(updateWeather, 60000);
     };
     x.send();
   }
@@ -1611,8 +1577,6 @@ nav#tiles::before{box-shadow:0 8px 24px rgba(60,40,90,.14)}
   applyLocation();
   loadAlarm();
   applyTheme();
-  showSlide(0);
-  restartRotation();
   focusTile(0);
   updateClock(); setInterval(updateClock, 10000);
   updateStatus(); setInterval(updateStatus, 3000);
