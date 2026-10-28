@@ -64,6 +64,43 @@ body.pastel{
 @keyframes fill{from{width:0}to{width:100%}}
 @keyframes rise{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+/* ---------- Wi-Fi icon in the top panel + Wi-Fi drawer ---------- */
+body.teal{--drawer-bg:rgba(16,32,34,.86);--row-on:rgba(255,255,255,.14)}
+body.pastel{--drawer-bg:rgba(255,250,247,.92);--row-on:rgba(106,85,176,.1)}
+.wbtn{display:flex;align-items:center;justify-content:center;width:64px;height:64px;margin:0 14px;border-radius:50%;transition:transform .2s,box-shadow .2s,background .2s}
+.wbtn svg{stroke:var(--ink);color:var(--ink)}
+.wbtn.on{transform:scale(1.1);background:var(--chip-bg);box-shadow:var(--focus-ring)}
+.wglyph .a{transition:opacity .3s}
+.wglyph .a.dim{opacity:.22}
+.wglyph .slash{display:none;stroke:var(--accent)}
+.wglyph.off .a{opacity:.22}
+.wglyph.off .slash{display:inline}
+#wifiScrim{position:absolute;inset:0;background:rgba(5,10,12,.4);opacity:0;pointer-events:none;transition:opacity .35s;z-index:60}
+#wifiScrim.open{opacity:1}
+#wifiDrawer{position:absolute;top:0;right:0;bottom:0;width:640px;z-index:61;display:flex;flex-direction:column;
+  padding:56px 44px 40px;box-sizing:border-box;background:var(--drawer-bg);color:var(--ink);
+  backdrop-filter:blur(28px);-webkit-backdrop-filter:blur(28px);box-shadow:-30px 0 80px rgba(0,0,0,.35);
+  transform:translateX(105%);transition:transform .38s cubic-bezier(.2,.8,.2,1)}
+#wifiDrawer.open{transform:none}
+#wifiDrawer h2{margin:0;font-family:var(--serif);font-size:54px;font-weight:600;line-height:1}
+#wifiNow{margin:12px 0 4px;font-size:20px;color:var(--muted)}
+#wifiNow b{color:var(--ink)}
+#wifiMsg{min-height:28px;margin:6px 0 14px;font-size:19px;color:var(--accent)}
+#wifiList{flex:1;overflow:hidden;display:flex;flex-direction:column;gap:6px}
+.wrow{display:flex;align-items:center;gap:18px;padding:16px 20px;border-radius:18px;font-size:23px;transition:background .2s,box-shadow .2s}
+.wrow .nm{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wrow small{font-size:16px;color:var(--muted)}
+.wrow small.cur{color:var(--accent);font-weight:var(--w-strong)}
+.wrow svg{flex-shrink:0;stroke:var(--ink);color:var(--ink)}
+.wrow.on{background:var(--row-on);box-shadow:var(--focus-ring)}
+.wrow.act{justify-content:center;font-weight:var(--w-label)}
+.wrow.wlink{margin-top:4px;background:var(--chip-bg);border:var(--chip-border);color:var(--muted);font-size:20px}
+.wpass{margin:0 0 4px 52px;border-radius:16px;background:var(--chip-bg);border:var(--chip-border);transition:box-shadow .2s}
+.wpass.on{box-shadow:var(--focus-ring)}
+.wpass input{width:100%;box-sizing:border-box;padding:16px 20px;border:0;background:transparent;font:inherit;font-size:24px;color:var(--ink);outline:none;letter-spacing:.04em}
+.wsub{margin-left:52px}
+.wspin{display:inline-block;width:16px;height:16px;margin-right:10px;border:2px solid var(--accent);border-right-color:transparent;border-radius:50%;animation:wspin .8s linear infinite;vertical-align:-2px}
+@keyframes wspin{to{transform:rotate(360deg)}}
 
 /* ---------- stage ---------- */
 #stage{position:absolute;left:0;top:0;width:1920px;height:1080px;overflow:hidden;transform-origin:0 0;
@@ -490,6 +527,14 @@ nav#tiles{z-index:45}
         <div class="col"><div class="temp" id="temp">--°</div><div class="sub" id="wxLine">Loading weather…</div></div>
       </div>
       <div class="vdiv"></div>
+      <div class="wbtn" id="wifiBtn" aria-label="Wi-Fi">
+        <svg class="wglyph" id="wifiGlyph" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <path class="a a3" d="M2.5 8.8a14 14 0 0 1 19 0"/><path class="a a2" d="M5.6 12.2a9.5 9.5 0 0 1 12.8 0"/>
+          <path class="a a1" d="M8.8 15.5a5 5 0 0 1 6.4 0"/><circle class="a a0" cx="12" cy="19" r="1.3" fill="currentColor"/>
+          <path class="slash" d="M4 3.5l16 17"/>
+        </svg>
+      </div>
+      <div class="vdiv"></div>
       <div class="cell col right" style="flex-direction:column;align-items:flex-end;gap:3px">
         <div class="clock"><b id="time" style="font-weight:300">--:--</b><span id="ampm"></span></div>
         <div class="sub" id="date"></div>
@@ -583,6 +628,16 @@ nav#tiles{z-index:45}
     </div>
   </div>
 
+  <!-- Wi-Fi drawer: slides in from the right under the Wi-Fi icon. Up/Down picks, OK joins; the password
+       field opens the TV keyboard. -->
+  <div id="wifiScrim"></div>
+  <aside id="wifiDrawer" aria-label="Wi-Fi">
+    <h2>Wi-Fi</h2>
+    <p id="wifiNow"></p>
+    <p id="wifiMsg"></p>
+    <div id="wifiList"></div>
+  </aside>
+
   <!-- Location picker: cities, or type one (Android keyboard), or say "set location to Tokyo". -->
   <div id="locPanel" class="modal">
     <div class="mcard">
@@ -639,7 +694,12 @@ nav#tiles{z-index:45}
     has: function () { return true; }, launch: function (p) { console.log('launch', p); return true; },
     openSettings: function () { console.log('settings'); }, apps: function () { return '[]'; },
     banner: function () { return ''; }, icon: function () { return ''; }, google: function () { return '{}'; }, googleSignIn: function () {},
-    wifi: function () { return '{"connected":true,"level":3}'; },
+    wifi: function () { return '{"enabled":true,"connected":true,"ssid":"Home","level":2}'; },
+    wifiNetworks: function () { return '{"enabled":true,"connected":true,"ssid":"Home","level":2,"list":[' +
+      '{"ssid":"Home","level":2,"sec":"psk","saved":true,"current":true},{"ssid":"Home 5G","level":3,"sec":"psk","saved":true,"current":false},' +
+      '{"ssid":"Neighbour","level":1,"sec":"sae","saved":false,"current":false},{"ssid":"Cafe Guest","level":0,"sec":"open","saved":false,"current":false}]}'; },
+    wifiScan: function () {}, wifiPermission: function () {}, openLocation: function () {}, wifiEnable: function () { return true; },
+    wifiConnect: function () { return '{"ok":false,"why":"add"}'; }, wifiForget: function () {},
     usb: function () { return '{"devices":0,"storage":[]}'; },
     openWifi: function () { console.log('wifi'); }, openStorage: function () { console.log('storage'); },
     listen: function () { console.log('listen'); }, say: function (t) { console.log('say', t); }, stopListening: function () {}, finishListening: function () {},
@@ -938,14 +998,16 @@ nav#tiles{z-index:45}
   window.onGoogle = function (err) { if (err) console.log('google sign-in: ' + err); paintG(); };
   paintG();
   var wxPanel = document.querySelector('.panel');
+  var wifiBtn = document.getElementById('wifiBtn');
   function headerItems() {
-    // No mic or Wi-Fi buttons: both are in the TV's Settings, and the remote's mic still reaches the assistant.
+    // No mic button: the remote's mic still reaches the assistant. Wi-Fi is the icon in the panel (the Wi-Fi drawer).
     var items = [];
     // The G signs in to Google; once signed in it shows that person's picture and opens the TV's account settings.
     // (Voice and the remote's mic still search Google.)
     items.push({ el: gChip, go: function () { TV.googleSignIn(); } });
     if (!usbChip.hidden) items.push({ el: usbChip, go: function () { TV.openStorage(); } });
     items.push({ el: wxPanel, go: function () { openWx(); } });
+    items.push({ el: wifiBtn, go: function () { openWifiDrawer(); } });
     return items;
   }
   // Dock magnification: size falls off with distance from the focused icon, like the macOS dock.
@@ -978,7 +1040,7 @@ nav#tiles{z-index:45}
     nav.style.setProperty('--bar', ((grown + DOCK_PAD) / (base + DOCK_PAD)).toFixed(3));
     var hs = headerItems();
     if (hi >= hs.length) hi = hs.length - 1;
-    [gChip, usbChip, wxPanel].forEach(function (el) { el.classList.toggle('on', zone === 'header' && hs[hi] && hs[hi].el === el); });
+    [gChip, usbChip, wxPanel, wifiBtn].forEach(function (el) { el.classList.toggle('on', zone === 'header' && hs[hi] && hs[hi].el === el); });
   }
   function focusTile(i) {
     ti = Math.max(0, Math.min(tiles.length - 1, i));
@@ -1284,6 +1346,219 @@ nav#tiles{z-index:45}
     toast('Alarm set for <b>' + esc(whenLabel(alarm.next)) + '</b>');
   }
 
+  // ---------- Wi-Fi drawer ----------
+  // With Location on: the networks Android sees (strongest first); OK on a locked one opens a password field under it.
+  // With Location off (Android hides nearby networks then, see WifiPanel.java): "Type a network name" opens a name and a
+  // password field. OK on a field = TV keyboard; OK again = next / join. Then "Scan again" (list mode) and
+  // "More Wi-Fi settings". The page never keeps or logs the password: it goes straight to Android, and the fields are
+  // cleared afterwards.
+  var wifiDrawer = document.getElementById('wifiDrawer'), wifiScrim = document.getElementById('wifiScrim');
+  var wifiListEl = document.getElementById('wifiList');
+  var wItems = [], wi = 0, wNets = [], wOpenFor = null, wShow = false, wTimers = [], wBusy = null, WROWS = 8;
+  var MANUAL = '\u0000manual';   // wOpenFor value for the typed-name form
+  // Android's permission dialog brings the home back through onHome, which closes everything:
+  // remember that the drawer sent us there, so it opens again on return.
+  var wReturn = false;
+  var LOCK = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
+  function bars(level) {
+    var a = ['M8.8 15.5a5 5 0 0 1 6.4 0', 'M5.6 12.2a9.5 9.5 0 0 1 12.8 0', 'M2.5 8.8a14 14 0 0 1 19 0'];
+    return '<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" aria-hidden="true">' +
+      a.map(function (d, i) { return '<path d="' + d + '" opacity="' + (level > i ? 1 : 0.22) + '"/>'; }).join('') +
+      '<circle cx="12" cy="19" r="1.3" fill="currentColor"/></svg>';
+  }
+  function wMsg(html) { document.getElementById('wifiMsg').innerHTML = html || ''; }
+  function wField(id) { var f = document.getElementById(id); return f ? f.value : ''; }
+  function wLoad() {
+    var d = {};
+    try { d = JSON.parse(TV.wifiNetworks() || '{}'); } catch (e) {}
+    var now = document.getElementById('wifiNow');
+    if (d.connected && d.wired) now.innerHTML = 'Connected by cable';
+    else if (d.connected && d.ssid) now.innerHTML = 'Connected to <b>' + esc(d.ssid) + '</b>';
+    else if (d.connected) now.innerHTML = 'Connected';
+    else if (d.enabled === false) now.innerHTML = 'Wi-Fi is off';
+    else now.innerHTML = 'Not connected';
+    return d;
+  }
+  // The password field plus Show/Connect rows, for network n (or the typed-name form).
+  function wPassRows(n) {
+    wItems.push({ key: 'pw', field: 'wifiPw', secret: true, ph: n === MANUAL ? 'Password (empty if none), then OK' : 'Password, then press OK',
+      go: function () { wFieldOk('wifiPw', function (v) { wJoin(n === MANUAL ? wManualNet() : n, v); }); } });
+    wItems.push({ key: 'show', html: wShow ? 'Hide password' : 'Show password', cls: 'act wsub', go: function () {
+      wShow = !wShow; var f = document.getElementById('wifiPw'); if (f) f.type = wShow ? 'text' : 'password';
+      wItems[wi].el.textContent = wShow ? 'Hide password' : 'Show password'; } });
+    wItems.push({ key: 'join', html: 'Connect', cls: 'act wsub', go: function () {
+      if (n !== MANUAL) { wJoin(n, wField('wifiPw')); return; }
+      if (!wField('wifiName').trim()) { wMsg('Type the network name first.'); wFocus(wKey('name')); return; }
+      wJoin(wManualNet(), wField('wifiPw')); } });
+  }
+  function wManualNet() {
+    var pw = wField('wifiPw');
+    return { ssid: wField('wifiName').trim(), sec: pw ? 'psk' : 'open', manual: true };
+  }
+  function wRender() {
+    var d = wLoad();
+    var keep = wItems[wi] && wItems[wi].key;
+    wItems = [];
+    if (d.enabled === false) {
+      wItems.push({ key: 'on', html: 'Turn on Wi-Fi', cls: 'act', go: function () {
+        TV.wifiEnable(true); wMsg('<span class="wspin"></span>Turning on Wi-Fi…'); TV.wifiScan(); wSchedule(); } });
+    } else if (d.needLocation) {
+      // Location stays off: no list. Join by name, or switch saved networks in Android's Wi-Fi settings.
+      wItems.push({ key: 'manual', html: 'Type a network name', cls: 'act', go: function () {
+        if (wOpenFor === MANUAL) { wFocus(wKey('name')); return; }
+        wOpenFor = MANUAL; wShow = false; wRender(); wFocus(wKey('name')); } });
+      if (wOpenFor === MANUAL) {
+        wItems.push({ key: 'name', field: 'wifiName', ph: 'Network name, then press OK',
+          go: function () { wFieldOk('wifiName', function () { wFocus(wKey('pw')); }); } });
+        wPassRows(MANUAL);
+      }
+    } else if (d.needPermission) {
+      wItems.push({ key: 'perm', html: 'Allow this home screen to see nearby Wi-Fi', cls: 'act', go: function () { wReturn = true; TV.wifiPermission(); } });
+    } else {
+      wNets = d.list || [];
+      wNets.slice(0, WROWS).forEach(function (n) {
+        var tag = n.current ? '<small class="cur">Connected</small>' : n.saved ? '<small>Saved</small>' : '';
+        wItems.push({ key: 'n:' + n.ssid, html: bars(n.level) + '<span class="nm"></span>' + tag + (n.sec !== 'open' && n.sec !== 'owe' ? LOCK : ''),
+          name: n.ssid, go: function () { wPick(n); } });
+        if (wOpenFor === n.ssid) wPassRows(n);
+      });
+      if (!wNets.length && !wBusy) wMsg('<span class="wspin"></span>Looking for networks…');
+      wItems.push({ key: 'scan', html: 'Scan again', cls: 'act wlink', go: function () { wMsg('<span class="wspin"></span>Looking for networks…'); TV.wifiScan(); wSchedule(); } });
+    }
+    wItems.push({ key: 'more', html: 'More Wi-Fi settings', cls: 'act wlink', go: function () { closeWifiDrawer(); TV.openWifi(); } });
+    var k = wKey(keep);
+    wi = k >= 0 ? k : Math.min(wi, wItems.length - 1);
+    wRenderRows();
+  }
+  function wKey(key) { return wItems.map(function (it) { return it.key; }).indexOf(key); }
+  function wRenderRows() {
+    var typed = { wifiName: wField('wifiName'), wifiPw: wField('wifiPw') };
+    wifiListEl.innerHTML = '';
+    wItems.forEach(function (it, i) {
+      var el = document.createElement('div');
+      if (it.field) {
+        el.className = 'wpass';
+        el.innerHTML = '<input type="' + (it.secret && !wShow ? 'password' : 'text') + '" autocomplete="off" autocapitalize="off" spellcheck="false">';
+        el.firstChild.id = it.field;
+        el.firstChild.placeholder = it.ph;
+        el.firstChild.value = typed[it.field] || '';
+      } else {
+        el.className = 'wrow ' + (it.cls || '');
+        el.innerHTML = it.html;
+        if (it.name != null) el.querySelector('.nm').textContent = it.name;
+      }
+      if (i === wi) el.classList.add('on');
+      wifiListEl.appendChild(el);
+      it.el = el;
+    });
+  }
+  function wFocus(i) {
+    var a = document.activeElement;
+    wi = Math.max(0, Math.min(wItems.length - 1, i));
+    if (a && a.tagName === 'INPUT' && wifiListEl.contains(a) && wItems[wi].field !== a.id) a.blur();
+    wItems.forEach(function (it, j) { it.el.classList.toggle('on', j === wi); });
+  }
+  // OK on a field: first press opens the TV keyboard; OK again (or the keyboard's Done) hands the value on.
+  function wFieldOk(id, done) {
+    var f = document.getElementById(id);
+    if (!f) return;
+    if (document.activeElement === f && (f.value.length || id === 'wifiPw')) { f.blur(); done(f.value); return; }
+    f.focus(); TV.showKeyboard();
+  }
+  function wPick(n) {
+    if (wBusy) return;
+    if (n.current) { wMsg('Already connected to ' + esc(n.ssid) + '.'); return; }
+    if (n.sec === 'eap') { wMsg('This network needs a user name. Use More Wi-Fi settings.'); return; }
+    if (n.sec === 'open' || n.sec === 'owe' || n.saved) { wJoin(n, ''); return; }
+    wAskPassword(n, '');
+  }
+  function wAskPassword(n, msg) {
+    wOpenFor = n.ssid; wShow = false; wMsg(msg);
+    wRender();
+    wFocus(wKey('pw'));
+  }
+  function wJoin(n, pw) {
+    if (wBusy) return;
+    var before = paintWifi();
+    var r = {};
+    try { r = JSON.parse(TV.wifiConnect(n.ssid, n.sec, pw) || '{}'); } catch (e) {}
+    if (!r.ok) {
+      if (n.manual && r.why === 'add') { wMsg(esc(n.ssid) + ' is already saved on this TV. Switch to it in More Wi-Fi settings.'); return; }
+      if (r.why === 'saved') { wAskPassword(n, 'Enter the password for ' + esc(n.ssid) + '.'); return; }
+      if (r.why === 'type') { wMsg('This network needs a user name. Use More Wi-Fi settings.'); return; }
+      wMsg('Android didn’t let this home screen change ' + esc(n.ssid) + '. Use More Wi-Fi settings.');
+      return;
+    }
+    var f = document.getElementById('wifiPw'); if (f) f.value = '';
+    wBusy = { ssid: n.ssid, net: n, id: r.id, added: r.added, before: before.addr || '', until: Date.now() + 30000 };
+    wMsg('<span class="wspin"></span>Connecting to ' + esc(n.ssid) + '…');
+    wWatch();
+  }
+  function wWatch() {
+    if (!wBusy) return;
+    var w = paintWifi(), b = wBusy;
+    // Location on: Android names the network. Location off: the TV got an address on a different network.
+    var joined = w.connected && (w.ssid ? w.ssid === b.ssid : !!w.addr && w.addr !== b.before);
+    if (joined) {
+      wBusy = null; wOpenFor = null;
+      var nm = document.getElementById('wifiName'); if (nm) nm.value = '';
+      wMsg('Connected to ' + esc(b.ssid) + '.');
+      wRender();
+      setTimeout(function () { if (zone === 'wifi') { closeWifiDrawer(); toast('Connected to <b>' + esc(b.ssid) + '</b>'); } }, 1500);
+      return;
+    }
+    if (Date.now() > b.until) {
+      wBusy = null;
+      if (b.added) TV.wifiForget(b.id);   // wrong password or out of reach: drop it so the TV goes back to its previous network
+      var fail = 'Couldn’t connect to ' + esc(b.ssid) + '. Check the ' + (b.net.manual ? 'name and ' : '') + 'password and try again.';
+      if (b.net.manual) { wOpenFor = MANUAL; wMsg(fail); wRender(); wFocus(wKey('pw')); }
+      else if (b.net.sec !== 'open' && b.net.sec !== 'owe') wAskPassword(b.net, fail);
+      else { wMsg('Couldn’t connect to ' + esc(b.ssid) + '.'); wRender(); }
+      return;
+    }
+    setTimeout(wWatch, 1000);
+  }
+  function wSchedule() {
+    wTimers.forEach(clearTimeout);
+    wTimers = [2500, 6000, 12000].map(function (ms) { return setTimeout(function () {
+      var a = document.activeElement;
+      if (zone !== 'wifi' || (a && a.tagName === 'INPUT' && wifiListEl.contains(a))) return;
+      if (!wBusy && !wOpenFor) wMsg('');
+      wRender();
+    }, ms); });
+  }
+  window.onWifiChanged = function () { if (zone === 'wifi') { wRender(); wSchedule(); } };
+  // The TV keyboard's Next key moves focus to the next field by itself: keep the highlight on the focused field.
+  wifiListEl.addEventListener('focusin', function (e) {
+    var k = wItems.map(function (it) { return it.field; }).indexOf(e.target.id);
+    if (k >= 0 && k !== wi) wFocus(k);
+  });
+  function wClearFields() {
+    ['wifiName', 'wifiPw'].forEach(function (id) { var f = document.getElementById(id); if (f) { f.value = ''; f.blur(); } });
+  }
+  function openWifiDrawer() {
+    zone = 'wifi'; wi = 0; wOpenFor = null; wShow = false; wBusy = null; wMsg('');
+    wifiDrawer.classList.add('open'); wifiScrim.classList.add('open');
+    TV.wifiScan();
+    wRender(); wSchedule(); render();
+  }
+  function closeWifiDrawer() {
+    wClearFields();
+    wTimers.forEach(clearTimeout); wOpenFor = null; wBusy = null;
+    wifiDrawer.classList.remove('open'); wifiScrim.classList.remove('open');
+    zone = 'header'; hi = headerItems().map(function (h) { return h.el; }).indexOf(wifiBtn); render();
+  }
+  function wifiBack() {
+    if (wOpenFor && !wBusy) { wClearFields(); wOpenFor = null; wMsg(''); wi = 0; wRender(); return; }
+    closeWifiDrawer();
+  }
+  function wifiKey(dir) {
+    if (dir === 'up') wFocus(wi - 1);
+    else if (dir === 'down') wFocus(wi + 1);
+    else if (dir === 'left') wifiBack();
+    else if (dir === 'ok' && wItems[wi]) wItems[wi].go();
+  }
+
   // ---------- keys ----------
   // On the TV the app forwards the D-pad via window.onKey; arrow keys cover desktop testing.
   document.addEventListener('keydown', function (e) {
@@ -1310,6 +1585,7 @@ nav#tiles{z-index:45}
       if (ok) closeWx();
       return;
     }
+    if (zone === 'wifi') { wifiKey(dir); return; }
     if (zone === 'loc') {
       if (left) moveLoc(-1, 0); else if (right) moveLoc(1, 0);
       else if (up) moveLoc(0, -1); else if (down) moveLoc(0, 1);
@@ -1344,7 +1620,7 @@ nav#tiles{z-index:45}
     }
     if (left) focusTile(ti - 1);
     else if (right) focusTile(ti + 1);
-    else if (up) { zone = 'header'; hi = headerItems().length - 1; render(); }
+    else if (up) { zone = 'header'; hi = headerItems().map(function (h) { return h.el; }).indexOf(wxPanel); render(); }
     else if (ok) launchFromDock(ti);
   }
 
@@ -1356,6 +1632,7 @@ nav#tiles{z-index:45}
     else if (zone === 'loc') closeLoc();
     else if (zone === 'names') closeNames();
     else if (zone === 'alarm') closeAlarm();
+    else if (zone === 'wifi') wifiBack();
     else { zone = 'tiles'; focusTile(0); }
   };
   window.onHome = function () {
@@ -1365,10 +1642,12 @@ nav#tiles{z-index:45}
     if (zone === 'loc') closeLoc();
     if (zone === 'names') closeNames();
     if (zone === 'alarm') closeAlarm();
+    if (zone === 'wifi') closeWifiDrawer();
     orbHide();
     zone = 'tiles'; render();
     updateClock(); updateStatus(); loadAlarm();
     genieHome();
+    if (wReturn) { wReturn = false; openWifiDrawer(); }
   };
   window.onMenu = toggleTheme;
 
@@ -1383,8 +1662,21 @@ nav#tiles{z-index:45}
     document.getElementById('date').textContent = new Intl.DateTimeFormat('en-US', { timeZone: TZ, weekday: 'long', month: 'long', day: 'numeric' }).format(now);
   }
 
+  // ---------- Wi-Fi icon ----------
+  var wifiGlyph = document.getElementById('wifiGlyph');
+  function paintWifi() {
+    var w = {};
+    try { w = JSON.parse(TV.wifi() || '{}'); } catch (e) {}
+    var lvl = w.connected ? (w.level == null ? 3 : w.level) : -1;
+    wifiGlyph.classList.toggle('off', !w.connected);
+    ['a1', 'a2', 'a3'].forEach(function (c, i) { wifiGlyph.querySelector('.' + c).classList.toggle('dim', !!w.connected && lvl < i + 1); });
+    wifiBtn.setAttribute('aria-label', w.connected ? (w.wired ? 'Wired network' : 'Wi-Fi: ' + (w.ssid || 'connected')) : 'Wi-Fi: not connected');
+    return w;
+  }
+
   // ---------- USB status chip ----------
   function updateStatus() {
+    paintWifi();
     var u = {};
     try { u = JSON.parse(TV.usb()); } catch (e) {}
     var drives = u.storage || [];
@@ -1589,7 +1881,7 @@ nav#tiles{z-index:45}
   var SHORTCUTS = [
     { words: ['all apps', 'apps', 'mga app'], name: 'All apps', go: function () { openDrawer(); } },
     { words: ['tv settings', 'settings', 'setting'], name: 'Settings', go: function () { TV.openSettings(); } },
-    { words: ['wifi', 'wi fi', 'internet', 'network'], name: 'Wi-Fi', go: function () { TV.openWifi(); } },
+    { words: ['wifi', 'wi fi', 'internet', 'network'], name: 'Wi-Fi', go: function () { if (zone === 'drawer') closeDrawer(); openWifiDrawer(); } },
     { words: ['weather', 'panahon'], name: 'Weather', go: function () { if (zone === 'drawer') closeDrawer(); openWx(); } },
     { words: ['main menu', 'main screen', 'home screen', 'go home', 'go back', 'back', 'menu', 'home', 'bahay', 'balik', 'uwi'],
       name: 'Home', go: function () { window.onHome(); } }

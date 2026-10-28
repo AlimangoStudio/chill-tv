@@ -6,7 +6,7 @@ There are two styles, plus a remote for your computer.
 | | **Chill TV Home** | **Chill TV Showcase** |
 |---|---|---|
 | For | A family TV | A shop, salon, office or waiting room |
-| Home screen | Clean, like macOS: your pictures as a slowly fading wallpaper, weather and clock on top, a macOS-style app dock that magnifies and opens apps with the genie effect, your Google profile picture | Your ads in a big centre card, app dock, clock |
+| Home screen | Clean, like macOS: your pictures as a slowly fading wallpaper, weather and clock on top, a macOS-style app dock that magnifies and opens apps with the genie effect, your Google profile picture, a Wi-Fi drawer to join networks | Your ads in a big centre card, app dock, clock |
 | When idle | Clock screensaver with an alarm | Full-screen slides about your business |
 | Extras | Voice assistant with a name you choose ("Max, open Netflix"), alarm that wakes the TV, two themes | Quiet classical background music, a reel of your videos |
 | Remote | Mac, Windows and browser remote, with keyboard-and-mouse Computer mode and voice commands through the laptop's mic ("TV, open Netflix") | The same, plus Reel, Idle and Music buttons |
@@ -27,6 +27,7 @@ Settings › Remote or behind the phone icon in Showcase. To build the kit yours
 
 ![Chill TV Home, teal](docs/screenshots/home-teal.png)
 ![Chill TV Home, pastel](docs/screenshots/home-pastel.png)
+![Chill TV Home, Wi-Fi drawer](docs/screenshots/home-wifi.png)
 
 **Chill TV Showcase**: home screen with your ads, and the idle showcase
 
@@ -73,9 +74,15 @@ Open the settings panel from the home screen:
 - **Theme**: Teal or Pastel.
 
 **Wallpapers**: Home shows the pictures listed in `WALLPAPERS` at the top of the script in [`home/app/assets/index.html`](home/app/assets/index.html), full screen, with a soft 2.5 s fade every 30 s (`WALL_SECONDS`). Two calm gradients are included (`wall1.jpg`, `wall2.jpg`). To use your own photos, put 1920×1080 JPEGs in `home/app/assets/`, list them in `WALLPAPERS`, and build. Use pictures you own or may share. Keep them 1920×1080 even for 4K files: most TV boxes show the home screen at 1080p, and smaller files fade more smoothly.
-The top bar holds the Google G, the USB button (only while a drive is plugged in) and the location, weather and clock panel; Wi-Fi and the microphone are in the TV's own Settings, and the remote's mic button still reaches the assistant.
+The top bar holds the Google G, the USB button (only while a drive is plugged in) and the location, weather, Wi-Fi and clock panel; the remote's mic button still reaches the assistant.
 
 **The dock** works like the macOS dock ([mac-genie](https://www.ui-layouts.com/components/mac-genie)): square app icons that grow as the focus passes over them, a dot under apps that are running, and the genie effect. An app opens out of its icon as a window, and pressing Home pours it back into the icon.
+
+**Wi-Fi drawer**: press Up from the dock, then Right to the Wi-Fi icon (its bars show the signal; a slash means offline), then OK. A drawer slides in from the right:
+- **Location off** (the default on most boxes, and the privacy-friendly choice): **Type a network name**, then the password (OK opens the TV keyboard, OK again moves on), then **Connect**. Android hides network names from apps while Location is off, so the drawer can't list nearby networks or switch between networks the TV already saved; use **More Wi-Fi settings** for those.
+- **Location on**: the drawer lists nearby networks, strongest first; pick one and type its password.
+
+If the password is wrong, the drawer says so after about 30 seconds, removes the attempt, and the TV goes back to its previous network. Passwords go straight to Android and are never logged. Joining Wi-Fi from an app only works for apps that target Android 9 (API 28), which is why Home targets API 28.
 
 **Google picture**: select the G and press OK to pick one of the TV's Google accounts (or add one). Google asks once for permission to read the basic profile. The G then becomes that person's profile picture, refreshed once a day. Pressing OK on the picture opens the TV's account settings. The e-mail address and the sign-in token are never shown or logged.
 

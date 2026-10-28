@@ -209,6 +209,7 @@ public class MainActivity extends Activity {
     public void onRequestPermissionsResult(int code, String[] perms, int[] results) {
         super.onRequestPermissionsResult(code, perms, results);
         if (code == 9 && results.length > 0 && results[0] == PackageManager.PERMISSION_GRANTED) startVoice();
+        if (code == 10) { WifiPanel.scan(this); js("window.onWifiChanged && window.onWifiChanged()"); }
     }
 
     private void stopVoice() {
@@ -582,22 +583,51 @@ public class MainActivity extends Activity {
             return url;
         }
 
-        /** {"connected":bool,"level":0-3} for the Wi-Fi chip. The network name is deliberately never read. */
+        /** {"enabled","connected","ssid","level"} for the Wi-Fi icon in the top bar (see WifiPanel). */
         @JavascriptInterface
         public String wifi() {
-            JSONObject o = new JSONObject();
-            try {
-                o.put("connected", false);
-                ConnectivityManager cm = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
-                NetworkInfo net = cm.getActiveNetworkInfo();
-                if (net == null || !net.isConnected()) return o.toString();
-                o.put("connected", true);
-                WifiManager wm = (WifiManager) getApplicationContext().getSystemService(WIFI_SERVICE);
-                WifiInfo info = wm.getConnectionInfo();
-                o.put("level", info == null ? 3 : WifiManager.calculateSignalLevel(info.getRssi(), 4));
-            } catch (Exception ignored) {
-            }
-            return o.toString();
+            return WifiPanel.status(MainActivity.this).toString();
+        }
+
+        /** The Wi-Fi drawer's list: status plus nearby networks, or what Android still needs (permission, Location). */
+        @JavascriptInterface
+        public String wifiNetworks() {
+            return WifiPanel.networks(MainActivity.this).toString();
+        }
+
+        @JavascriptInterface
+        public void wifiScan() {
+            WifiPanel.scan(MainActivity.this);
+        }
+
+        /** Android's one-time "allow" dialog for listing nearby networks. */
+        @JavascriptInterface
+        public void wifiPermission() {
+            runOnUiThread(new Runnable() { public void run() {
+                if (Build.VERSION.SDK_INT >= 23) requestPermissions(new String[] {
+                    Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION }, 10);
+            } });
+        }
+
+        @JavascriptInterface
+        public void openLocation() {
+            open(new Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS));
+        }
+
+        @JavascriptInterface
+        public boolean wifiEnable(boolean on) {
+            return WifiPanel.setEnabled(MainActivity.this, on);
+        }
+
+        /** Join a network; the password is handed straight to Android and never logged. */
+        @JavascriptInterface
+        public String wifiConnect(String ssid, String sec, String password) {
+            return WifiPanel.connect(MainActivity.this, ssid, sec, password).toString();
+        }
+
+        @JavascriptInterface
+        public void wifiForget(int id) {
+            WifiPanel.forget(MainActivity.this, id);
         }
 
         /** {"devices":n,"storage":["label",…]} for the USB chip; empty when nothing is plugged in. */
