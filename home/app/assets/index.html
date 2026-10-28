@@ -422,6 +422,33 @@ nav#tiles .tile.on{outline-width:3px;outline-offset:2px}
 nav#tiles .tlabel{bottom:calc(100% + 12px);padding:6px 14px;font-size:17px;border-radius:10px}
 nav#tiles .tw::after{bottom:-8px;width:5px;height:5px;margin-left:-2.5px}
 #voiceToast{bottom:200px}
+
+/* ---------- the mac-genie dock (after ui-layouts.com/components/mac-genie) ---------- */
+/* Square app icons on a quiet glass bar (white .10 over a dark base, since this box cannot blur), magnified like the
+   macOS dock (sizes in render()). Opening an app pours a window out of its icon (#genie, canvas) and Home sucks it
+   back in. The dot marks the app that is running, as on the Mac. */
+nav#tiles{bottom:24px!important;height:126px!important;padding:16px 22px 14px!important;gap:14px!important}
+body.teal nav#tiles::before,body.pastel nav#tiles::before,nav#tiles::before{border-radius:28px!important;
+  background:linear-gradient(rgba(255,255,255,.10),rgba(255,255,255,.10)),rgba(18,22,30,.55)!important;
+  border:1px solid rgba(255,255,255,.14)!important;box-shadow:0 8px 32px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.10)!important}
+nav#tiles .tw{width:96px!important;height:96px!important}
+nav#tiles .tile{border-radius:22px!important;overflow:hidden}
+nav#tiles .tile.icon{background:transparent!important}
+nav#tiles .tile.icon img.logo{object-fit:cover}
+nav#tiles .tile.sys{background:linear-gradient(180deg,#8e8e96,#5a5a63)!important}
+nav#tiles .tile.sys.all{background:linear-gradient(180deg,#5e6b80,#3a4352)!important}
+nav#tiles .tile.sys svg{stroke:#fff!important;width:52%!important}
+nav#tiles .tile.on,body.pastel nav#tiles .tile.on{outline:none!important}
+nav#tiles .tw::after{bottom:-10px!important;width:6px!important;height:6px!important;margin-left:-3px!important;background:#fff!important}
+nav#tiles .tw.focus::after{opacity:0}
+nav#tiles .tw.running::after{opacity:.85!important}
+nav#tiles{z-index:45}
+#genie{position:absolute;left:0;top:0;width:1920px;height:1080px;pointer-events:none;z-index:40}
+#genie.over{z-index:46}
+.gchip{transition:transform .2s,box-shadow .2s}
+.gchip.signed{padding:3px;box-sizing:border-box}
+.gchip img.gavatar{width:100%;height:100%;border-radius:50%;object-fit:cover;display:block}
+.gchip.on{transform:scale(1.1);box-shadow:0 8px 24px rgba(0,0,0,.22),var(--focus-ring)}
 </style>
 </head>
 <body class="teal">
@@ -611,7 +638,7 @@ nav#tiles .tw::after{bottom:-8px;width:5px;height:5px;margin-left:-2.5px}
   var TV = window.TV || {
     has: function () { return true; }, launch: function (p) { console.log('launch', p); return true; },
     openSettings: function () { console.log('settings'); }, apps: function () { return '[]'; },
-    banner: function () { return ''; }, icon: function () { return ''; },
+    banner: function () { return ''; }, icon: function () { return ''; }, google: function () { return '{}'; }, googleSignIn: function () {},
     wifi: function () { return '{"connected":true,"level":3}'; },
     usb: function () { return '{"devices":0,"storage":[]}'; },
     openWifi: function () { console.log('wifi'); }, openStorage: function () { console.log('storage'); },
@@ -701,14 +728,17 @@ nav#tiles .tw::after{bottom:-8px;width:5px;height:5px;margin-left:-2.5px}
   var nav = document.getElementById('tiles');
   var tiles = APPS.map(function (a) {
     var w = document.createElement('div'); w.className = 'tw';
-    var logo = a.pkg ? TV.banner(a.pkg) : '';
+    // Square app icons like the Mac dock; the TV banner only when an app has no icon.
+    var icon = a.pkg ? TV.icon(a.pkg) : '';
+    var logo = icon || (a.pkg ? TV.banner(a.pkg) : '');
     var face = logo ? '<img class="logo" alt="" src="' + logo + '">' :
       '<svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + ICON[a.key] + '</svg>';
-    w.innerHTML = '<div class="tile' + (logo ? ' has-logo' : '') + '">' + face + '</div>' +
+    var cls = 'tile' + (logo ? ' has-logo' : ' sys') + (icon ? ' icon' : '') + (a.key === 'all' ? ' all' : '');
+    w.innerHTML = '<div class="' + cls + '">' + face + '</div>' +
       '<span class="tlabel">' + a.label + '</span>';
     nav.appendChild(w);
-    var t = { key: a.key, app: a, el: w.firstChild, label: w.lastChild, logo: !!logo };
-    if (logo) matchEdge(w.firstChild, w.firstChild.firstChild);
+    var t = { key: a.key, app: a, el: w.firstChild, label: w.lastChild, logo: !!logo, banner: a.pkg ? TV.banner(a.pkg) : '', iconUrl: logo };
+    if (logo && !icon) matchEdge(w.firstChild, w.firstChild.firstChild);
     return t;
   });
 
@@ -726,17 +756,142 @@ nav#tiles .tw::after{bottom:-8px;width:5px;height:5px;margin-left:-2.5px}
     if (img.complete) paint(); else img.onload = paint;
   }
 
-  // The macOS launch bounce, then open the app once the hop is visible.
+  // ---------- the genie (ported from ui-layouts mac-genie: renderGenie, DUR 500, same easing) ----------
+  // An app opens by pouring a window out of its dock icon; Home sucks it back in. The window is a picture we draw
+  // (title bar + the app's TV banner): Android cannot show us the app itself. The last frame stays up while the app
+  // runs (the page is hidden then), so coming home starts the minimise from exactly where the opening ended.
+  var GWIN_W = 960, GWIN_H = 580, GDUR = 500, GSTEP = 2;   // GSTEP: rows per slice (the box paints in software)
+  var genie = document.createElement('canvas');
+  genie.id = 'genie'; genie.width = 1920; genie.height = 1080;
+  document.body.appendChild(genie);
+  var gctx = genie.getContext('2d');
+  var gState = 'idle', gApp = -1, gWin = null, gRaf = 0;
+  var gTimes = [], gPrev = 0, gLastTs = 0;
+  function gClamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+  function gLerp(a, b, t) { return a + (b - a) * t; }
+  function gEioC(t) { return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
+  function gIn2(t) { return t * t; }
+  function gOut2(t) { return 1 - (1 - t) * (1 - t); }
+  function gRound(c, x, y, w, h, r) {
+    c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r);
+    c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath();
+  }
+  // The window picture: macOS title bar (traffic lights + name) over the app's banner, or its icon on the edge colour.
+  function genieWindow(t, done) {
+    var off = document.createElement('canvas'); off.width = GWIN_W; off.height = GWIN_H;
+    var c = off.getContext('2d'), TB = 40;
+    c.save(); gRound(c, 0, 0, GWIN_W, GWIN_H, 14); c.clip();
+    c.fillStyle = '#1c1f26'; c.fillRect(0, 0, GWIN_W, GWIN_H);
+    var tb = c.createLinearGradient(0, 0, 0, TB); tb.addColorStop(0, '#30343d'); tb.addColorStop(1, '#262930');
+    c.fillStyle = tb; c.fillRect(0, 0, GWIN_W, TB);
+    ['#ff5f57', '#febc2e', '#28c840'].forEach(function (col, k) { c.fillStyle = col; c.beginPath(); c.arc(24 + k * 22, TB / 2, 7, 0, Math.PI * 2); c.fill(); });
+    c.fillStyle = 'rgba(255,255,255,.82)'; c.font = '600 18px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.fillText(t.app.label, GWIN_W / 2, TB / 2);
+    function finish(img, isBanner) {
+      if (img && isBanner) c.drawImage(img, 0, TB, GWIN_W, GWIN_H - TB);
+      else {
+        var bg = c.createLinearGradient(0, TB, 0, GWIN_H); bg.addColorStop(0, '#2a3140'); bg.addColorStop(1, '#151a22');
+        c.fillStyle = bg; c.fillRect(0, TB, GWIN_W, GWIN_H - TB);
+        if (img) c.drawImage(img, GWIN_W / 2 - 110, TB + (GWIN_H - TB) / 2 - 110, 220, 220);
+      }
+      c.restore();
+      c.strokeStyle = 'rgba(255,255,255,.14)'; c.lineWidth = 1; gRound(c, .5, .5, GWIN_W - 1, GWIN_H - 1, 14); c.stroke();
+      done(off);
+    }
+    var src = t.banner || t.iconUrl;
+    if (!src) return finish(null, false);
+    var img = new Image();
+    img.onload = function () { finish(img, !!t.banner); };
+    img.onerror = function () { finish(null, false); };
+    img.src = src;
+  }
+  function genieDock(i) {
+    var b = tiles[i].el.getBoundingClientRect();
+    return { x: b.left + b.width / 2, y: b.top + b.height / 2 };
+  }
+  // renderGenie from mac-genie: each row of the window travels on its own schedule, so the bottom rows reach the
+  // dock first and the window narrows into a funnel; a soft white glow blooms on the icon at the end.
+  function renderGenie(off, rawT, dir, dock, win) {
+    gctx.clearRect(0, 0, 1920, 1080);
+    for (var y = 0; y < GWIN_H; y += GSTEP) {
+      var r = y / GWIN_H;
+      var rowXStart = dir === 'minimize' ? (1 - r) * 0.65 : r * 0.65;
+      var xE = gEioC(gClamp((rawT - rowXStart) / (1 - rowXStart), 0, 1));
+      var rowYStart = dir === 'minimize' ? (1 - r) * 0.2 : r * 0.2;
+      var yE = gIn2(gClamp((rawT - rowYStart) / (1 - rowYStart), 0, 1));
+      var left, right, destY;
+      if (dir === 'minimize') {
+        left = gLerp(win.x, dock.x, xE); right = gLerp(win.x + GWIN_W, dock.x, xE); destY = gLerp(win.y + y, dock.y, yE);
+      } else {
+        left = gLerp(dock.x, win.x, xE); right = gLerp(dock.x, win.x + GWIN_W, xE); destY = gLerp(dock.y, win.y + y, yE);
+      }
+      var rowW = right - left;
+      if (rowW < 0.8) continue;
+      gctx.drawImage(off, 0, y, GWIN_W, GSTEP, left, destY, rowW, GSTEP);
+    }
+    var glowRaw = dir === 'minimize' ? rawT : 1 - rawT;
+    if (glowRaw > 0.75) {
+      var g = gctx.createRadialGradient(dock.x, dock.y, 0, dock.x, dock.y, 90);
+      g.addColorStop(0, 'rgba(255,255,255,' + (gOut2((glowRaw - 0.75) / 0.25) * 0.3).toFixed(3) + ')');
+      g.addColorStop(1, 'rgba(255,255,255,0)');
+      gctx.fillStyle = g; gctx.fillRect(dock.x - 90, dock.y - 90, 180, 180);
+    }
+  }
+  function genieRun(dir, i, off, onDone) {
+    cancelAnimationFrame(gRaf);
+    var dock = genieDock(i), start = 0, frames = 0, t0 = performance.now();
+    gWin = { x: (1920 - GWIN_W) / 2, y: (1080 - GWIN_H) / 2 - 60 };
+    genie.classList.toggle('over', dir === 'minimize');
+    // Progress grows by the real frame time but never more than one normal frame (34 ms) per drawn frame: when the
+    // box stalls (an app shutting down behind us, frames 267-350 ms apart) the funnel slows instead of jumping.
+    var prog = 0;
+    function frame(ts) {
+      if (!start) start = ts;
+      prog += Math.min(ts - (gLastTs || ts), 34); gLastTs = ts;
+      var rawT = gClamp(prog / GDUR, 0, 1);
+      renderGenie(off, rawT, dir, dock, gWin); frames++;
+      if (dir === 'minimize') gTimes.push(Math.round(ts - (gPrev || ts))); gPrev = ts;
+      if (rawT < 1) gRaf = requestAnimationFrame(frame);
+      else { console.log('genie ' + dir + ' ' + frames + ' frames in ' + Math.round(performance.now() - t0) + ' ms ' + gTimes.join(',')); gTimes = []; gPrev = 0; gLastTs = 0; onDone(); }
+    }
+    gRaf = requestAnimationFrame(frame);
+  }
+  function genieClear() { cancelAnimationFrame(gRaf); gctx.clearRect(0, 0, 1920, 1080); genie.classList.remove('over'); }
+  function setRunning(i) { tiles.forEach(function (t, k) { t.el.parentNode.classList.toggle('running', k === i); }); }
+  // Coming home (Back/Home from the app): the window goes back into its icon.
+  function genieHome() {
+    if (gState !== 'open' || gApp < 0) return;
+    var i = gApp; gState = 'closing';
+    render();   // the dock lays out first, so the window lands on the icon where it is now
+    // Right after an app closes the box is busy (system transition, the app tearing down): frames are computed but
+    // hardly shown, so the funnel looked like a jump (recorded 2026-10-28). The full window is already on the canvas,
+    // so wait until six frames in a row arrive on time (max 2 s), then run it.
+    var last = 0, good = 0, t0 = performance.now();
+    function settle(ts) {
+      good = last && ts - last < 25 ? good + 1 : 0; last = ts;
+      if (good >= 6 || ts - t0 > 2000) {
+        console.log('genie settle ' + Math.round(ts - t0) + ' ms');
+        genieRun('minimize', i, gWinPic, function () { genieClear(); gState = 'idle'; });
+      } else gRaf = requestAnimationFrame(settle);
+    }
+    gRaf = requestAnimationFrame(settle);
+  }
+  var gWinPic = null;
+
+  // Opening from the dock: apps get the genie; Settings and All apps are panels on this screen and just open.
   var launching = false;
   function launchFromDock(i) {
-    if (launching) return;
-    var w = tiles[i].el.parentNode, app = tiles[i].app;
-    w.classList.remove('bounce');
-    void w.offsetWidth;
-    w.classList.add('bounce');
+    if (launching || gState !== 'idle') return;
+    var t = tiles[i], app = t.app;
+    if (!app.pkg) { activate(app); return; }
     launching = true;
-    setTimeout(function () { launching = false; activate(app); }, app.pkg ? 450 : 250);
-    setTimeout(function () { w.classList.remove('bounce'); }, 900);
+    genieWindow(t, function (off) {
+      gWinPic = off; gState = 'opening';
+      genieRun('open', i, off, function () {
+        launching = false; gState = 'open'; gApp = i; setRunning(i);
+        if (TV.launch(app.pkg) === false) genieHome();   // nothing opened: put the window straight back
+      });
+    });
   }
 
   function activate(a) {
@@ -766,23 +921,44 @@ nav#tiles .tw::after{bottom:-8px;width:5px;height:5px;margin-left:-2.5px}
   // ---------- focus / remote ----------
   var zone = 'tiles', ti = 0, hi = 0;
   var usbChip = document.getElementById('usbChip');
+  var gChip = document.querySelector('.gchip');
+  var gLogo = gChip.innerHTML;
+  // The G becomes the person's Google picture once they are signed in (GoogleProfile.java keeps it on the box).
+  function paintG() {
+    var g = {};
+    try { g = JSON.parse(TV.google() || '{}'); } catch (e) {}
+    if (g.signedIn && g.avatar) {
+      gChip.innerHTML = '<img class="gavatar" alt="" src="' + g.avatar + '">';
+      gChip.classList.add('signed');
+      gChip.setAttribute('aria-label', g.first ? g.first + "'s Google account" : 'Google account');
+    } else {
+      gChip.innerHTML = gLogo; gChip.classList.remove('signed'); gChip.setAttribute('aria-label', 'Sign in to Google');
+    }
+  }
+  window.onGoogle = function (err) { if (err) console.log('google sign-in: ' + err); paintG(); };
+  paintG();
   var wxPanel = document.querySelector('.panel');
   function headerItems() {
     // No mic or Wi-Fi buttons: both are in the TV's Settings, and the remote's mic still reaches the assistant.
     var items = [];
+    // The G signs in to Google; once signed in it shows that person's picture and opens the TV's account settings.
+    // (Voice and the remote's mic still search Google.)
+    items.push({ el: gChip, go: function () { TV.googleSignIn(); } });
     if (!usbChip.hidden) items.push({ el: usbChip, go: function () { TV.openStorage(); } });
     items.push({ el: wxPanel, go: function () { openWx(); } });
     return items;
   }
-  // Dock magnification: size falls off with distance from the focused tile (Gaussian, like the macOS dock).
-  // Off the dock (hero, header, panels) every tile rests at the base size.
-  var DOCK_W = 120, DOCK_H = 80, DOCK_GROW = 0.5, DOCK_SPREAD = 1.6;
-  var DOCK_GAP = 12, DOCK_PAD = 32;   // tile size, gap and side padding, as in the dock CSS
+  // Dock magnification: size falls off with distance from the focused icon, like the macOS dock.
+  // Off the dock (hero, header, panels) every icon rests at the base size.
+  // mac-genie dock: icon 50 -> 74 px within 130 px of the pointer, falling off in a straight line. On the TV the
+  // "pointer" is the focused icon, so the range is 130 / (50 + 8 gap) = 2.24 icons and the peak 74/50 = 1.48x.
+  var DOCK_W = 96, DOCK_H = 96, DOCK_GROW = 0.48, DOCK_RANGE = 2.24;
+  var DOCK_GAP = 14, DOCK_PAD = 44;   // icon size, gap and side padding, as in the dock CSS
   function render() {
-    // Lay the magnified tiles out on paper, then move each one there with a GPU transform (no relayout).
+    // Lay the magnified icons out on paper, then move each one there with a GPU transform (no relayout).
     var scales = tiles.map(function (t, i) {
-      var d = i - ti;
-      return zone === 'tiles' ? 1 + DOCK_GROW * Math.exp(-(d * d) / DOCK_SPREAD) : 1;
+      var d = Math.abs(i - ti);
+      return zone === 'tiles' ? 1 + DOCK_GROW * Math.max(0, 1 - d / DOCK_RANGE) : 1;
     });
     var x = 0, centers = [];
     scales.forEach(function (s) { centers.push(x + DOCK_W * s / 2); x += DOCK_W * s + DOCK_GAP; });
@@ -802,7 +978,7 @@ nav#tiles .tw::after{bottom:-8px;width:5px;height:5px;margin-left:-2.5px}
     nav.style.setProperty('--bar', ((grown + DOCK_PAD) / (base + DOCK_PAD)).toFixed(3));
     var hs = headerItems();
     if (hi >= hs.length) hi = hs.length - 1;
-    [usbChip, wxPanel].forEach(function (el) { el.classList.toggle('on', zone === 'header' && hs[hi] && hs[hi].el === el); });
+    [gChip, usbChip, wxPanel].forEach(function (el) { el.classList.toggle('on', zone === 'header' && hs[hi] && hs[hi].el === el); });
   }
   function focusTile(i) {
     ti = Math.max(0, Math.min(tiles.length - 1, i));
@@ -1192,6 +1368,7 @@ nav#tiles .tw::after{bottom:-8px;width:5px;height:5px;margin-left:-2.5px}
     orbHide();
     zone = 'tiles'; render();
     updateClock(); updateStatus(); loadAlarm();
+    genieHome();
   };
   window.onMenu = toggleTheme;
 

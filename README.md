@@ -6,7 +6,7 @@ There are two styles, plus a remote for your computer.
 | | **Chill TV Home** | **Chill TV Showcase** |
 |---|---|---|
 | For | A family TV | A shop, salon, office or waiting room |
-| Home screen | Clean, like macOS: your pictures as a slowly fading wallpaper, weather and clock on top, a small MacBook-style app dock | Your ads in a big centre card, app dock, clock |
+| Home screen | Clean, like macOS: your pictures as a slowly fading wallpaper, weather and clock on top, a macOS-style app dock that magnifies and opens apps with the genie effect, your Google profile picture | Your ads in a big centre card, app dock, clock |
 | When idle | Clock screensaver with an alarm | Full-screen slides about your business |
 | Extras | Voice assistant with a name you choose ("Max, open Netflix"), alarm that wakes the TV, two themes | Quiet classical background music, a reel of your videos |
 | Remote | Mac, Windows and browser remote, with keyboard-and-mouse Computer mode and voice commands through the laptop's mic ("TV, open Netflix") | The same, plus Reel, Idle and Music buttons |
@@ -74,6 +74,17 @@ Open the settings panel from the home screen:
 
 **Wallpapers**: Home shows the pictures listed in `WALLPAPERS` at the top of the script in [`home/app/assets/index.html`](home/app/assets/index.html), full screen, with a soft 2.5 s fade every 30 s (`WALL_SECONDS`). Two calm gradients are included (`wall1.jpg`, `wall2.jpg`). To use your own photos, put 1920×1080 JPEGs in `home/app/assets/`, list them in `WALLPAPERS`, and build. Use pictures you own or may share. Keep them 1920×1080 even for 4K files: most TV boxes show the home screen at 1080p, and smaller files fade more smoothly.
 The top bar holds the Google G, the USB button (only while a drive is plugged in) and the location, weather and clock panel; Wi-Fi and the microphone are in the TV's own Settings, and the remote's mic button still reaches the assistant.
+
+**The dock** works like the macOS dock ([mac-genie](https://www.ui-layouts.com/components/mac-genie)): square app icons that grow as the focus passes over them, a dot under apps that are running, and the genie effect. An app opens out of its icon as a window, and pressing Home pours it back into the icon.
+
+**Google picture**: select the G and press OK to pick one of the TV's Google accounts (or add one). Google asks once for permission to read the basic profile. The G then becomes that person's profile picture, refreshed once a day. Pressing OK on the picture opens the TV's account settings. The e-mail address and the sign-in token are never shown or logged.
+
+Google only gives the picture to a registered app, so a self-build needs a free Android OAuth client of its own:
+1. In [Google Cloud console](https://console.cloud.google.com/), create a project, open **Google Auth Platform**, and fill in the app name, support e-mail and **External** audience.
+2. Under **Clients**, create an **Android** client with package name `app.alimango.chilltv.home` (or yours, if you renamed it) and the SHA-1 of your `signing.keystore`: `keytool -list -v -keystore home/signing.keystore`.
+3. While the app is in **Testing**, add each Google account that will sign in on the TV under **Audience > Test users** (up to 100). Publishing it instead needs a homepage and a privacy-policy address.
+
+Without a client the G stays a plain G after the account is picked. Settings can take a few minutes to reach Google.
 
 ### Chill TV Showcase: your business in `config.js`
 

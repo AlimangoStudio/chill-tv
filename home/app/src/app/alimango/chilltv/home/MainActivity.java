@@ -54,6 +54,7 @@ import java.util.Map;
 /** Home screen: renders the designed UI from assets in a WebView and launches apps through a JS bridge. */
 public class MainActivity extends Activity {
     private static final int REQ_VOICE = 41;
+    private static final int REQ_ACCOUNT = 42;   // the G: Android's Google account chooser
     private WebView web;
     private boolean pageReady;
     // Voice phrases waiting for onResume: the home reset there would otherwise close what the command opened.
@@ -234,6 +235,13 @@ public class MainActivity extends Activity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQ_ACCOUNT) {
+            String name = (resultCode == RESULT_OK && data != null) ? data.getStringExtra(android.accounts.AccountManager.KEY_ACCOUNT_NAME) : null;
+            if (name == null) return;
+            GoogleProfile.prefs(this).edit().putString("account", name).apply();
+            refreshGoogle(true);
+            return;
+        }
         if (requestCode != REQ_VOICE) return;
         ArrayList<String> said = (resultCode == RESULT_OK && data != null)
             ? data.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS) : null;
@@ -262,6 +270,7 @@ public class MainActivity extends Activity {
             listenOnResume = false;
             startVoice();
         }
+        refreshGoogle(false);
     }
 
     @Override
@@ -362,7 +371,62 @@ public class MainActivity extends Activity {
         return i;
     }
 
+    /** Fetch the G picture when an account is chosen and the picture is missing or a day old (force: just chosen). */
+    private void refreshGoogle(boolean force) {
+        final android.accounts.Account acc = GoogleProfile.chosen(this);
+        if (acc == null) {
+            if (!GoogleProfile.prefs(this).getString("account", "").isEmpty() && !force) {
+                GoogleProfile.forget(this);           // the account was removed from the TV: back to the G
+                js("window.onGoogle && window.onGoogle()");
+            }
+            return;
+        }
+        if (!force && !GoogleProfile.due(this)) return;
+        GoogleProfile.fetch(this, acc, new GoogleProfile.Done() {
+            public void run(String error) {
+                // No token (permission declined, or this build is not registered with Google): back to a plain G,
+                // so the next OK opens the chooser again instead of retrying on every return home.
+                if ("token".equals(error)) GoogleProfile.forget(MainActivity.this);
+                js("window.onGoogle && window.onGoogle(" + (error == null ? "''" : "'" + error + "'") + ")");
+            }
+        });
+    }
+
+    /** Signed in = an account is chosen and its picture has been fetched. */
+    private boolean googleSignedIn() {
+        return GoogleProfile.chosen(this) != null && !GoogleProfile.prefs(this).getString("avatar", "").isEmpty();
+    }
+
     class Bridge {
+        /** {"signedIn":bool,"avatar":"data:..."|"","first":"Sam"|""}; the e-mail address is never handed to the page. */
+        @JavascriptInterface
+        public String google() {
+            JSONObject o = new JSONObject();
+            try {
+                boolean in = googleSignedIn();
+                android.content.SharedPreferences p = GoogleProfile.prefs(MainActivity.this);
+                o.put("signedIn", in);
+                o.put("avatar", in ? p.getString("avatar", "") : "");
+                o.put("first", in ? p.getString("first", "") : "");
+            } catch (Exception ignored) {
+            }
+            return o.toString();
+        }
+
+        /** The G: not signed in -> Android's chooser (pick the TV's account, or Add account); signed in -> account settings. */
+        @JavascriptInterface
+        public void googleSignIn() {
+            runOnUiThread(new Runnable() { public void run() {
+                if (googleSignedIn()) {
+                    try { startActivity(new Intent(Settings.ACTION_SYNC_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); }
+                    catch (Exception e) { startActivity(new Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); }
+                    return;
+                }
+                try { startActivityForResult(GoogleProfile.chooser(), REQ_ACCOUNT); }
+                catch (Exception e) { Log.w("ChillTV", "account chooser: " + e.getClass().getSimpleName()); }
+            } });
+        }
+
         /** {"code":"ABCD2345","address":"192.168.1.20","port":8765} for Settings -> Remote (see PairingCode). */
         @JavascriptInterface
         public String remotePairing() {

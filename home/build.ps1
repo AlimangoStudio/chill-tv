@@ -34,7 +34,7 @@ if (-not $Release) { (Get-Content $rx -Raw).Replace('CHANGE-ME', $remoteKey) | S
 & "$bt\aapt2.exe" compile --dir "$out\res" -o "$out\res.zip"
 if ($LASTEXITCODE) { throw 'aapt2 compile failed' }
 & "$bt\aapt2.exe" link -I $jar --manifest "$root\app\AndroidManifest.xml" -A "$root\app\assets" `
-    --java "$out\gen" --min-sdk-version 21 --target-sdk-version 31 --version-code 1 --version-name 1.0 `
+    --java "$out\gen" --min-sdk-version 21 --target-sdk-version 31 --version-code 2 --version-name 1.2 `
     -o "$out\unsigned.apk" "$out\res.zip"
 if ($LASTEXITCODE) { throw 'aapt2 link failed' }
 
