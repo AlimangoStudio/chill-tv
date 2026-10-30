@@ -111,6 +111,9 @@ Both apps run a small remote server on the TV (port 8765). Every request needs a
 - **Browser**: open `http://<TV-IP>:8765/?k=<key>` on any phone or computer for a simple remote page.
 - **Windows**: run `remote\windows\build.cmd`. It uses the C# compiler built into Windows, so there's nothing to install. Run `ChillRemote.exe`, then enter the TV address and key. The key is stored encrypted for your Windows user only.
 - **Mac**: run `bash remote/mac/build-mac.sh` (macOS 12 or newer, Xcode Command Line Tools).
+- **Keys in every app (Mac)**: the launcher can only press keys on its own screen. When the Mac has adb (`brew install --cask android-platform-tools`) and the TV allows it (network debugging on, "Always allow" once), the Mac remote's arrows, OK and Back press real keys in whichever app is in front, Netflix included. Without adb they go to the launcher as before.
+- **Type on the TV (Mac)**: select a search or sign-in field on the TV, press **⌨ Type on the TV** and type on the Mac. Needs the same adb access. Plain letters, numbers and symbols only.
+- **Renamed Mac install**: `NAME="…" BUNDLE_ID=… bash remote/mac/build-mac.sh`. Optional settings (`defaults write <bundle id> …`): `brand` (the name on the remote), `adbPath` and `adbHome` (an adb and the HOME holding the key the TV already allowed).
 - **Computer mode** needs [scrcpy](https://github.com/Genymobile/scrcpy):
   - Windows: unzip it into `remote\windows\scrcpy\`.
   - Mac: `brew install scrcpy`.

@@ -574,7 +574,7 @@ namespace ChillTV
             string exe = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "scrcpy", "scrcpy.exe");
             if (!File.Exists(exe)) exe = "scrcpy.exe";
             ProcessStartInfo si = new ProcessStartInfo(exe,
-                "--tcpip=" + Settings.Host + ":5555 --keyboard=uhid --mouse=sdk --no-audio --max-size 1280 --max-fps 30 --window-title \"Chill TV\"");
+                "--tcpip=" + Settings.Host + ":5555 --keyboard=sdk --mouse=sdk --no-audio --max-size 1280 --max-fps 30 --window-title \"Chill TV\"");
             si.UseShellExecute = false; si.CreateNoWindow = true;
             try
             {
