@@ -506,7 +506,6 @@ struct Pad: View {
 struct RemoteView: View {
     @ObservedObject var tv: TV
     @ObservedObject var voice: Voice
-    let collapse: () -> Void
     let typeText: () -> Void
     var body: some View {
         VStack(spacing: 10) {
@@ -514,7 +513,6 @@ struct RemoteView: View {
                 Circle().fill(tv.online == true ? teal : tv.online == false ? .red : .gray).frame(width: 9, height: 9)
                 Text(brand.uppercased()).font(.system(size: 12, weight: .bold)).kerning(1.5)
                 Spacer()
-                Button(action: collapse) { Image(systemName: "minus").frame(width: 22, height: 22) }.buttonStyle(.plain)
             }.foregroundColor(.white)
             Pad(tv: tv)
             HStack(spacing: 6) {
@@ -626,7 +624,7 @@ final class Dock: NSObject, NSWindowDelegate {
 
     func expand() {
         expanded = true
-        let v = NSHostingView(rootView: RemoteView(tv: tv, voice: voice, collapse: { [weak self] in self?.collapse() },
+        let v = NSHostingView(rootView: RemoteView(tv: tv, voice: voice,
                                                    typeText: { [weak self] in self?.askText() })
             .onHover { [weak self] _ in self?.poke() })
         let size = v.fittingSize
@@ -634,7 +632,7 @@ final class Dock: NSObject, NSWindowDelegate {
         panel.contentView = v
         tv.refresh()                         // one status check when opened; nothing runs in the background
         poke()
-        outsideMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in if self?.tv.computerOn != true { self?.collapse() } }
+        outsideMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in self?.collapse() }   // a click anywhere else folds it up, Computer mode or not
     }
 
     /// Collapse after 60 s without use, so the remote goes back to sleep.
