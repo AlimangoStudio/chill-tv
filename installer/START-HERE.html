@@ -19,6 +19,9 @@
   ol.steps > li::before { content:counter(s); position:absolute; left:16px; top:14px; width:34px; height:34px; border-radius:50%; background:var(--accent); color:#fff; font-weight:700; display:grid; place-items:center; }
   .path { font-weight:600; }
   .tip { background:var(--tip); border-radius:12px; padding:12px 16px; margin-top:12px; }
+  .fit { display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:12px; }
+  .fit .card ul { margin:6px 0 0; padding-left:20px; }
+  .fit .yes h3 { color:var(--accent); }
   code, .file { font-family:ui-monospace, Consolas, monospace; font-size:.92em; background:color-mix(in srgb, var(--line) 55%, transparent); padding:1px 6px; border-radius:6px; }
   a { color:var(--accent); }
   @media print { body { background:#fff; color:#000; } .card, ol.steps > li { break-inside:avoid; } }
@@ -33,6 +36,29 @@
     <div class="card"><h3>Chill TV Home</h3>A calm home screen for the family TV: your apps, clock, weather and a voice assistant.<br>File: <span class="file">ChillTV-Home.apk</span></div>
     <div class="card"><h3>Chill TV Showcase</h3>A home screen for a shop, clinic or office TV: your photos, ads and music.<br>File: <span class="file">ChillTV-Showcase.apk</span></div>
   </div>
+
+  <h2>Will it work on my TV?</h2>
+  <p>Chill TV runs on <b>Android TV</b> and <b>Google TV</b>. The quickest check: if the TV has the <b>Google Play Store</b> app, it works. Not sure? Look in <span class="path">Settings › About</span> (or <span class="path">Settings › Device Preferences › About</span>) for "Android TV" or "Google TV".</p>
+  <div class="fit">
+    <div class="card yes"><h3>Works</h3>
+      <ul>
+        <li>Sony Bravia (Android TV and Google TV models)</li>
+        <li>TCL, Philips, Sharp and Toshiba Android TV and Google TV models</li>
+        <li>Xiaomi TVs, Mi Box and Mi TV Stick</li>
+        <li>Hisense, Devant, Coocaa, Skyworth, XTREME and ACE models that say <b>Google TV</b> or <b>Android TV</b> on the box</li>
+        <li>Any Android TV or Google TV box or stick (for example Chromecast with Google TV)</li>
+      </ul></div>
+    <div class="card"><h3>Can't run Chill TV</h3>
+      <ul>
+        <li>LG (webOS)</li>
+        <li>Samsung (Tizen)</li>
+        <li>Hisense and Devant models with <b>VIDAA</b></li>
+        <li>Coocaa models with <b>Coolita</b></li>
+        <li>Basic TVs with no app store</li>
+      </ul>
+      <div class="tip">These TVs can't install Android apps. Plug a Google TV or Android TV stick or box into a spare HDMI port, then install Chill TV on the stick.</div></div>
+  </div>
+  <div class="tip">Amazon Fire TV installs Chill TV, but Amazon keeps its own home screen: open Chill TV from <span class="path">Apps</span>.</div>
 
   <h2>Install with a USB stick</h2>
   <ol class="steps">
@@ -57,8 +83,9 @@
   <h2>Control the TV from your laptop (optional)</h2>
   <ol class="steps">
     <li>Open <span class="file">Remote for Windows › ChillRemote.exe</span>. Windows may say it's from an unknown publisher: choose <b>More info › Run anyway</b>.</li>
-    <li>Right-click the round remote › <b>Pair with a TV</b>. Type the TV address and the <b>pairing code</b> shown on the TV: Chill TV Home <span class="path">Settings › Remote</span>, or the phone icon on Chill TV Showcase. Every TV has its own code.</li>
+    <li>Right-click the round remote › <b>Pair with a TV</b>. Type the <b>pairing code</b> shown on the TV: Chill TV Home <span class="path">Settings › Remote</span>, or the phone icon on Chill TV Showcase. Every TV has its own code. The TV address is optional.</li>
   </ol>
+  <div class="tip">The laptop and the TV must be on the same Wi-Fi. When the TV moves to another Wi-Fi or gets a new address, the remote finds it again by itself (Chill TV must have been opened on the TV once).</div>
 
   <h2>Remove Chill TV</h2>
   <p>If you used the PC helper, run it once more and choose <b>5 (Undo)</b>. Then remove the app in <span class="path">Settings › Apps › Chill TV › Uninstall</span>.</p>

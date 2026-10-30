@@ -56,6 +56,22 @@ function Wait-Device([string]$target, [int]$seconds) {
     return $false
 }
 
+# Chill TV needs Android TV or Google TV. LG (webOS), Samsung (Tizen), VIDAA and Coolita TVs can't install Android apps.
+function Check-Tv {
+    Say ''
+    Say 'Chill TV works on Android TV and Google TV: Sony, TCL, Xiaomi / Mi Box, Philips, Sharp, Toshiba, and' White
+    Say 'Hisense, Devant, Coocaa, Skyworth, XTREME or ACE models that say "Google TV" or "Android TV".' White
+    Say 'It can''t run on LG (webOS), Samsung (Tizen), VIDAA or Coolita TVs.'
+    Say 'Quick check: does the TV have the Google Play Store app?'
+    if (Ask-Yes 'Does this TV (or the box plugged into it) have Google Play Store?') { return $true }
+    Say ''
+    Say 'Then this TV can''t install Chill TV (or any Android app).' Yellow
+    Say 'Plug a Google TV or Android TV stick or box (for example Chromecast with Google TV or Mi TV Stick) into a' Yellow
+    Say 'spare HDMI port, then run this helper again for the stick.' Yellow
+    Say 'Not sure? Look in the TV''s Settings > About for "Android TV" or "Google TV".'
+    return (Ask-Yes 'Try to connect anyway?')
+}
+
 function Connect-Tv {
     Say ''
     Say 'Before you start, on the TV:' White
@@ -84,7 +100,9 @@ function Connect-Tv {
     if ($connectAt -notmatch '^[0-9A-Za-z.\-]+:\d+$') { throw 'That address is not in the expected form.' }
     $script:target = $connectAt
     Say (Invoke-Adb @('connect', $script:target))
-    if (-not (Wait-Device $script:target 20)) { throw "Could not connect to $connectAt." }
+    if (-not (Wait-Device $script:target 20)) {
+        throw "Could not connect to $connectAt. Check that the TV and this PC are on the same Wi-Fi and USB debugging is on. LG, Samsung, VIDAA and Coolita TVs have no USB debugging: they can't run Chill TV."
+    }
     Say "Connected to the TV at $connectAt." Green
 }
 
@@ -222,6 +240,7 @@ try {
     Say '==============='
     New-Item -ItemType Directory -Force $state | Out-Null
     Get-Adb
+    if (-not (Check-Tv)) { Say 'Nothing was changed.' Green; Pause-Key; exit }
     Connect-Tv
     Choose-Model
     $quit = $false
