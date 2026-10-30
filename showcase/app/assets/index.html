@@ -368,7 +368,10 @@ function musicCredit() {
   clearTimeout(creditT); creditT = setTimeout(function () { $('hMusic').className = $('scMusic').className = ''; }, 8000);
 }
 function musicLoad(i) { musicIdx = i % MUSIC.length; music.src = MUSIC[musicIdx].src; musicCredit(); }
-function musicPlay() { if (!musicOn || !MUSIC.length) return; var p = music.play(); if (p && p.catch) p.catch(function () {}); }
+// away: another app (Netflix…) is in front. The page keeps running behind it, so nothing may start the music then
+// (the idle timer switching to the slideshow used to, playing it over Netflix).
+var away = false;
+function musicPlay() { if (away || !musicOn || !MUSIC.length) return; var p = music.play(); if (p && p.catch) p.catch(function () {}); }
 function musicPause() { music.pause(); }
 music.addEventListener('ended', function () { musicLoad(musicIdx + 1); musicPlay(); });
 music.addEventListener('error', function () { setTimeout(function () { musicLoad(musicIdx + 1); musicPlay(); }, 1000); });
@@ -471,10 +474,10 @@ $('reelVideo').addEventListener('ended', function () {
   if (reelIdx + 1 < REELS.length) playReel(reelIdx + 1); else { setMode('home'); resetIdle(); }
 });
 window.onBack = function () { resetIdle(); if (mode !== 'home') setMode('home'); else { fr = rows.length - 1; fc = 0; paintFocus(); } };
-window.onHomeResume = function () { resetIdle(); setMode('home'); musicPlay(); };
-window.onHomePause = function () { musicPause(); };
+window.onHomeResume = function () { away = false; resetIdle(); setMode('home'); musicPlay(); };
+window.onHomePause = function () { away = true; clearTimeout(idleT); musicPause(); };
 // remote control (Mac dock / remote page): switch screen, music on/off
-window.remoteMode = function (m) { resetIdle(); setMode(m === 'showcase' || m === 'reel' ? m : 'home'); if (m === 'home') { fr = rows.length - 1; fc = 0; paintFocus(); } };
+window.remoteMode = function (m) { away = false; resetIdle(); setMode(m === 'showcase' || m === 'reel' ? m : 'home'); if (m === 'home') { fr = rows.length - 1; fc = 0; paintFocus(); } };
 window.setMusic = function (on) { musicOn = !!on; if (musicOn && mode !== 'reel') musicPlay(); else musicPause(); };
 </script>
 </body>
