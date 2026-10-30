@@ -142,6 +142,7 @@ public class MainActivity extends Activity {
         web.loadUrl("file:///android_asset/index.html");
         current = this;
         RemoteServer.ensureStarted(this);
+        TvFinder.ensureStarted(this);   // the PC/Mac remote finds the TV again after its address changes
         setContentView(web);
         web.requestFocus();
     }

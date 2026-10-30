@@ -4,6 +4,8 @@
 // Voice: the PC's microphone and Windows' own offline speech recognizer. Say "TV" then a command ("TV, open
 // Netflix", "TV, pause", "TV, volume up"); speech never leaves this PC, only the command goes to the TV.
 // Settings (TV address and key) are kept for this Windows user only, the key encrypted by Windows (DPAPI).
+// The address is optional: when the TV cannot be reached (another Wi-Fi, a new address from the router) the remote
+// finds it again on the local network (Finder below) and remembers the new address.
 // Build: build.cmd (uses the C# compiler that ships with Windows; nothing to install).
 using System;
 using System.Collections.Generic;
@@ -13,6 +15,8 @@ using System.Drawing.Drawing2D;
 using System.Drawing.Text;
 using System.IO;
 using System.Net;
+using System.Net.NetworkInformation;
+using System.Net.Sockets;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Speech.Recognition;
@@ -31,7 +35,7 @@ namespace ChillTV
         public static string Key = "";
         public static int X = -1, Y = -1;
         public static bool Voice;
-        public static bool Configured { get { return Host.Length > 0 && Key.Length > 0; } }
+        public static bool Configured { get { return Key.Length > 0; } }   // no address: Finder looks for the TV
 
         public static void Load()
         {
@@ -57,6 +61,71 @@ namespace ChillTV
                 File.WriteAllBytes(FilePath, ProtectedData.Protect(raw, null, DataProtectionScope.CurrentUser));
             }
             catch { }
+        }
+    }
+
+    // Finds the TV on the local network: broadcast "CHILLTV-FIND <id>" to UDP 8766; only the TV with this pairing code
+    // answers. <id> is a one-way digest of the code (the TV's TvFinder.findId), so the code never goes over the network.
+    static class Finder
+    {
+        public static string FindId(string code)
+        {
+            string norm = code.Trim().Replace("-", "").Replace(" ", "").ToUpperInvariant();
+            using (SHA256 sha = SHA256.Create())
+            {
+                byte[] d = sha.ComputeHash(Encoding.UTF8.GetBytes("chilltv-find:" + norm));
+                StringBuilder b = new StringBuilder();
+                for (int i = 0; i < 8; i++) b.Append(d[i].ToString("x2"));
+                return b.ToString();
+            }
+        }
+
+        // The TV's address, or null when no TV answered within about two seconds.
+        public static string Find(string code)
+        {
+            string id = FindId(code);
+            byte[] ask = Encoding.ASCII.GetBytes("CHILLTV-FIND " + id);
+            try
+            {
+                using (UdpClient u = new UdpClient(0))
+                {
+                    u.EnableBroadcast = true;
+                    u.Client.ReceiveTimeout = 700;
+                    for (int round = 0; round < 3; round++)
+                    {
+                        foreach (IPAddress b in Broadcasts()) { try { u.Send(ask, ask.Length, new IPEndPoint(b, 8766)); } catch { } }
+                        DateTime until = DateTime.UtcNow.AddMilliseconds(700);
+                        while (DateTime.UtcNow < until)
+                        {
+                            IPEndPoint from = new IPEndPoint(IPAddress.Any, 0);
+                            byte[] got;
+                            try { got = u.Receive(ref from); } catch (SocketException) { break; }
+                            if (Encoding.ASCII.GetString(got).StartsWith("CHILLTV-HERE " + id)) return from.Address.ToString();
+                        }
+                    }
+                }
+            }
+            catch { }
+            return null;
+        }
+
+        // 255.255.255.255 plus each network's own broadcast address (some routers only pass the second).
+        static List<IPAddress> Broadcasts()
+        {
+            List<IPAddress> list = new List<IPAddress> { IPAddress.Broadcast };
+            foreach (NetworkInterface n in NetworkInterface.GetAllNetworkInterfaces())
+            {
+                if (n.OperationalStatus != OperationalStatus.Up || n.NetworkInterfaceType == NetworkInterfaceType.Loopback) continue;
+                foreach (UnicastIPAddressInformation a in n.GetIPProperties().UnicastAddresses)
+                {
+                    if (a.Address.AddressFamily != AddressFamily.InterNetwork || a.IPv4Mask == null) continue;
+                    byte[] ip = a.Address.GetAddressBytes(), mask = a.IPv4Mask.GetAddressBytes();
+                    for (int i = 0; i < 4; i++) ip[i] = (byte)(ip[i] | ~mask[i]);
+                    IPAddress b = new IPAddress(ip);
+                    if (!list.Contains(b)) list.Add(b);
+                }
+            }
+            return list;
         }
     }
 
@@ -426,26 +495,49 @@ namespace ChillTV
         void Send(string path)
         {
             if (!Settings.Configured) { AskSettings(); return; }
-            string url = "http://" + Settings.Host + ":8765" + path + (path.Contains("?") ? "&" : "?") + "k=" + Uri.EscapeDataString(Settings.Key);
+            string host = Settings.Host, key = Settings.Key;
             ThreadPool.QueueUserWorkItem(delegate
             {
                 string body = null, err = null;
-                try
+                int code = host.Length > 0 ? Get(host, key, path, out body, out err) : 0;
+                if (code == 0)
                 {
-                    HttpWebRequest req = (HttpWebRequest)WebRequest.Create(url);
-                    req.Timeout = 4000;
-                    using (HttpWebResponse r = (HttpWebResponse)req.GetResponse())
-                    using (StreamReader rd = new StreamReader(r.GetResponseStream())) body = rd.ReadToEnd();
+                    // Not reachable at the saved address (or none yet): the TV may have a new one. Look for it once.
+                    string found = Finder.Find(key);
+                    if (found != null && found != host)
+                    {
+                        host = found;
+                        try { BeginInvoke((MethodInvoker)delegate { Settings.Host = found; Settings.Save(); }); } catch { }
+                        code = Get(host, key, path, out body, out err);
+                    }
+                    else if (found == null)
+                        err = "TV not found. Is it on, and is this computer on the same Wi-Fi?";
                 }
-                catch (WebException we)
-                {
-                    HttpWebResponse r = we.Response as HttpWebResponse;
-                    int code = r != null ? (int)r.StatusCode : 0;
-                    err = code == 403 ? "Wrong key" : code == 0 ? "TV not reachable (is it on?)" : "Error " + code;
-                }
-                catch (Exception ex) { err = ex.Message; }
                 try { BeginInvoke((MethodInvoker)delegate { Apply(body, err); }); } catch { }
             });
+        }
+
+        // One request to the TV. Returns the HTTP status, or 0 when the TV did not answer at all.
+        static int Get(string host, string key, string path, out string body, out string err)
+        {
+            body = null; err = null;
+            string url = "http://" + host + ":8765" + path + (path.Contains("?") ? "&" : "?") + "k=" + Uri.EscapeDataString(key);
+            try
+            {
+                HttpWebRequest req = (HttpWebRequest)WebRequest.Create(url);
+                req.Timeout = 4000;
+                using (HttpWebResponse r = (HttpWebResponse)req.GetResponse())
+                using (StreamReader rd = new StreamReader(r.GetResponseStream())) body = rd.ReadToEnd();
+                return 200;
+            }
+            catch (WebException we)
+            {
+                HttpWebResponse r = we.Response as HttpWebResponse;
+                int code = r != null ? (int)r.StatusCode : 0;
+                err = code == 403 ? "Wrong key" : code == 0 ? "TV not reachable (is it on?)" : "Error " + code;
+                return code;
+            }
+            catch (Exception ex) { err = ex.Message; return -1; }
         }
 
         void Apply(string body, string err)
@@ -478,6 +570,7 @@ namespace ChillTV
         {
             if (computer != null && !computer.HasExited) { try { computer.Kill(); } catch { } return; }
             if (!Settings.Configured) { AskSettings(); return; }
+            if (Settings.Host.Length == 0) { note = "Press any remote button first so the remote finds the TV."; Relayout(); return; }
             string exe = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "scrcpy", "scrcpy.exe");
             if (!File.Exists(exe)) exe = "scrcpy.exe";
             ProcessStartInfo si = new ProcessStartInfo(exe,
@@ -500,7 +593,7 @@ namespace ChillTV
             {
                 f.Text = "Chill TV Remote"; f.FormBorderStyle = FormBorderStyle.FixedDialog; f.MaximizeBox = false; f.MinimizeBox = false;
                 f.StartPosition = FormStartPosition.CenterScreen; f.ClientSize = new Size(360, 190); f.TopMost = true; f.Font = new Font("Segoe UI", 9.5f);
-                Label l = new Label(); l.Text = "On the TV open Chill TV: Settings > Remote (Home) or the phone icon (Showcase). Type the TV address, then the pairing code."; l.Bounds = new Rectangle(14, 10, 332, 40); f.Controls.Add(l);
+                Label l = new Label(); l.Text = "On the TV open Chill TV: Settings > Remote (Home) or the phone icon (Showcase). Type the pairing code; the TV address is optional (found by itself on the same Wi-Fi)."; l.Bounds = new Rectangle(14, 10, 332, 40); f.Controls.Add(l);
                 TextBox host = new TextBox(); host.Bounds = new Rectangle(14, 56, 332, 24); host.Text = Settings.Host; f.Controls.Add(host);
                 TextBox key = new TextBox(); key.Bounds = new Rectangle(14, 96, 332, 24); key.Text = Settings.Key; key.CharacterCasing = CharacterCasing.Upper; f.Controls.Add(key);
                 Button ok = new Button(); ok.Text = "Save"; ok.Bounds = new Rectangle(190, 144, 75, 30); ok.DialogResult = DialogResult.OK; f.Controls.Add(ok);

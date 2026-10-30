@@ -108,6 +108,7 @@ public class MainActivity extends Activity {
         web.loadUrl("file:///android_asset/index.html");
         RemoteHooks.current = this;
         RemoteServer.ensureStarted(this);
+        TvFinder.ensureStarted(this);   // the PC/Mac remote finds the TV again after its address changes
         web.requestFocus(View.FOCUS_DOWN);
         takeVoiceExtra(getIntent());
         AlarmScheduler.schedule(this);

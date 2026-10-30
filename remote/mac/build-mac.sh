@@ -24,6 +24,8 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
   <key>NSSpeechRecognitionUsageDescription</key><string>Voice turns what you say into a remote command. On Macs that support it, this happens on the Mac.</string>
   <!-- The TV's remote server answers plain HTTP on your own network. -->
   <key>NSAppTransportSecurity</key><dict><key>NSAllowsArbitraryLoads</key><true/></dict>
+  <!-- macOS 15+: asks once to reach devices on the local network (the TV, and finding it after its address changes). -->
+  <key>NSLocalNetworkUsageDescription</key><string>Chill TV Remote talks to your TV on your home network and finds it again when its address changes.</string>
 </dict></plist>
 PLIST
 codesign --force --sign - "$APP"

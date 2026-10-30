@@ -4,11 +4,15 @@
 // (no timers, no network) unless Voice is on.
 // Voice: the Mac's microphone and Apple's speech recognizer, on the Mac itself where the Mac supports it. Say "TV" then a
 // command ("TV, open Netflix", "TV, pause", "TV, volume up"); only the command goes to the TV.
+// The TV address is optional: when the TV cannot be reached (another Wi-Fi, a new address from the router) the remote
+// finds it again on the local network (Finder below) and remembers the new address.
 // Build on the Mac: ./build-mac.sh   (needs only the Xcode Command Line Tools: xcode-select --install)
 import SwiftUI
 import AppKit
 import Speech
 import AVFoundation
+import CryptoKit
+import Darwin
 
 // MARK: - Settings (TV address and key), kept in UserDefaults
 
@@ -19,7 +23,74 @@ final class Settings: ObservableObject {
         host = UserDefaults.standard.string(forKey: "host") ?? ""
         key = UserDefaults.standard.string(forKey: "key") ?? ""
     }
-    var configured: Bool { !host.isEmpty && !key.isEmpty }
+    var configured: Bool { !key.isEmpty }   // no address: Finder looks for the TV
+}
+
+// MARK: - Finding the TV on the local network
+
+/// Broadcasts "CHILLTV-FIND <id>" to UDP 8766; only the TV with this pairing code answers. <id> is a one-way digest of
+/// the code (the TV's TvFinder.findId), so the code itself never goes over the network.
+enum Finder {
+    static func findId(_ code: String) -> String {
+        let norm = code.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: "-", with: "")
+            .replacingOccurrences(of: " ", with: "").uppercased()
+        let digest = SHA256.hash(data: Data(("chilltv-find:" + norm).utf8))
+        return digest.prefix(8).map { String(format: "%02x", $0) }.joined()
+    }
+
+    /// The TV's address, or nil when no TV answered within about two seconds. Call it off the main thread.
+    static func find(_ code: String) -> String? {
+        let id = findId(code)
+        let fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)
+        guard fd >= 0 else { return nil }
+        defer { close(fd) }
+        var yes: Int32 = 1
+        setsockopt(fd, SOL_SOCKET, SO_BROADCAST, &yes, socklen_t(MemoryLayout<Int32>.size))
+        var wait = timeval(tv_sec: 0, tv_usec: 300_000)
+        setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &wait, socklen_t(MemoryLayout<timeval>.size))
+        let ask = Array("CHILLTV-FIND \(id)".utf8)
+        for _ in 0..<3 {
+            for b in broadcasts() {
+                var to = sockaddr_in()
+                to.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
+                to.sin_family = sa_family_t(AF_INET)
+                to.sin_port = in_port_t(8766).bigEndian
+                to.sin_addr = b
+                _ = withUnsafePointer(to: &to) {
+                    $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { sendto(fd, ask, ask.count, 0, $0, socklen_t(MemoryLayout<sockaddr_in>.size)) }
+                }
+            }
+            let until = Date().addingTimeInterval(0.7)
+            while Date() < until {
+                var buf = [UInt8](repeating: 0, count: 128)
+                var from = sockaddr_in()
+                var len = socklen_t(MemoryLayout<sockaddr_in>.size)
+                let n = withUnsafeMutablePointer(to: &from) {
+                    $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { recvfrom(fd, &buf, buf.count, 0, $0, &len) }
+                }
+                if n <= 0 { continue }
+                let msg = String(decoding: buf[0..<n], as: UTF8.self)
+                if msg.hasPrefix("CHILLTV-HERE \(id)") { return String(cString: inet_ntoa(from.sin_addr)) }
+            }
+        }
+        return nil
+    }
+
+    /// 255.255.255.255 plus each network's own broadcast address (some routers only pass the second).
+    private static func broadcasts() -> [in_addr] {
+        var list = [in_addr(s_addr: INADDR_BROADCAST)]
+        var ifs: UnsafeMutablePointer<ifaddrs>?
+        guard getifaddrs(&ifs) == 0, let first = ifs else { return list }
+        defer { freeifaddrs(ifs) }
+        for p in sequence(first: first, next: { $0.pointee.ifa_next }) {
+            let i = p.pointee
+            guard (i.ifa_flags & UInt32(IFF_UP)) != 0, (i.ifa_flags & UInt32(IFF_BROADCAST)) != 0,
+                  let a = i.ifa_dstaddr, a.pointee.sa_family == sa_family_t(AF_INET) else { continue }
+            let b = a.withMemoryRebound(to: sockaddr_in.self, capacity: 1) { $0.pointee.sin_addr }
+            if !list.contains(where: { $0.s_addr == b.s_addr }) { list.append(b) }
+        }
+        return list
+    }
 }
 
 // MARK: - Talking to the TV
@@ -37,8 +108,9 @@ final class TV: ObservableObject {
     let settings: Settings
     init(settings: Settings) { self.settings = settings }
 
-    func send(_ path: String) {
+    func send(_ path: String, searched: Bool = false) {
         guard settings.configured else { note = "Right-click the circle → Set TV address"; return }
+        if settings.host.isEmpty { find(then: path); return }
         let sep = path.contains("?") ? "&" : "?"
         let k = settings.key.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
         guard let url = URL(string: "http://\(settings.host):8765\(path)\(sep)k=\(k)") else { return }
@@ -47,7 +119,11 @@ final class TV: ObservableObject {
             let code = (resp as? HTTPURLResponse)?.statusCode ?? 0
             let st = data.flatMap { try? JSONDecoder().decode(TVStatus.self, from: $0) }
             DispatchQueue.main.async {
-                if err != nil || code == 0 { self.online = false; self.note = "TV not reachable (is it on?)"; return }
+                if err != nil || code == 0 {
+                    // Not reachable at the saved address: the TV may have a new one. Look for it once.
+                    if !searched { self.find(then: path); return }
+                    self.online = false; self.note = "TV not reachable (is it on?)"; return
+                }
                 if code == 403 { self.online = false; self.note = "Wrong pairing code (see Chill TV on the TV)"; return }
                 self.online = true
                 self.note = st?.note ?? ""
@@ -62,6 +138,23 @@ final class TV: ObservableObject {
     }
     func refresh() { send("/api/status") }
 
+    /// Looks for the TV on the local network, saves its new address and repeats the request once.
+    private func find(then path: String) {
+        let key = settings.key, old = settings.host
+        DispatchQueue.global(qos: .userInitiated).async {
+            let found = Finder.find(key)
+            DispatchQueue.main.async {
+                guard let found = found, found != old else {
+                    self.online = false
+                    self.note = found == nil ? "TV not found. Is it on, and is this Mac on the same Wi-Fi?" : "TV not reachable (is it on?)"
+                    return
+                }
+                self.settings.host = found
+                self.send(path, searched: true)
+            }
+        }
+    }
+
     /// Computer mode: the TV in a window on the Mac (scrcpy), controlled by the Mac keyboard and mouse.
     /// Closing that window ends it; nothing keeps running afterwards.
     @Published var computerOn = false
@@ -71,6 +164,7 @@ final class TV: ObservableObject {
     func computerMode() {
         if computerOn { stopComputerMode(); return }
         guard settings.configured else { return }
+        guard !settings.host.isEmpty else { note = "Press any remote button first so the remote finds the TV."; return }
         let script = Bundle.main.path(forResource: "tv-computer-mode", ofType: "sh") ?? ""
         guard FileManager.default.fileExists(atPath: script) else { note = "Computer mode script missing from the app"; return }
         let p = Process()
@@ -442,9 +536,9 @@ final class Dock: NSObject, NSWindowDelegate {
     func askSettings() {
         let a = NSAlert()
         a.messageText = "Chill TV Remote"
-        a.informativeText = "TV address on your network (for example 192.168.1.50) and the remote key from showcase/remote-key.txt."
-        let host = NSTextField(frame: NSRect(x: 0, y: 30, width: 260, height: 24)); host.placeholderString = "TV address"; host.stringValue = settings.host
-        let key = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24)); key.placeholderString = "Remote key"; key.stringValue = settings.key
+        a.informativeText = "The pairing code shown in Chill TV on the TV. The TV address is optional: the remote finds the TV by itself on the same Wi-Fi."
+        let host = NSTextField(frame: NSRect(x: 0, y: 30, width: 260, height: 24)); host.placeholderString = "TV address (optional)"; host.stringValue = settings.host
+        let key = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24)); key.placeholderString = "Pairing code"; key.stringValue = settings.key
         let box = NSView(frame: NSRect(x: 0, y: 0, width: 260, height: 54)); box.addSubview(host); box.addSubview(key)
         a.accessoryView = box
         a.addButton(withTitle: "Save"); a.addButton(withTitle: "Cancel")
