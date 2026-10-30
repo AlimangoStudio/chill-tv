@@ -429,12 +429,18 @@ nav#tiles::before{box-shadow:0 8px 24px rgba(60,40,90,.14)}
 #orb:not(.open){visibility:hidden;transition:opacity .35s ease,visibility 0s linear .35s}
 #orb:not(.open) .swirl,#orb:not(.open) .orbcore,#orb:not(.open) .orbwrap::after{animation:none!important}
 /* ---------- clean, like macOS ---------- */
-/* The WALLPAPERS pictures fill the screen, one soft fade every WALL_SECONDS; no centre card. The top bar and the dock
-   are quiet glass over the picture. No live blur: TV boxes often paint in software (see lite mode above). */
+/* One wallpaper fills the screen: a looping video or a picture (WALLPAPER, or the family's own from a USB stick);
+   no centre card. The top bar and the dock are quiet glass over it. No live blur: TV boxes often paint in software. */
 .orb,.hero{display:none!important}
 #wall{position:absolute;inset:0;overflow:hidden;background:#0d1622}
 #wall .wp{position:absolute;inset:0;background-size:cover;background-position:center;opacity:0;transition:opacity 2.5s ease;will-change:opacity}
 #wall .wp.on{opacity:1}
+#wall video.wp{width:100%;height:100%;object-fit:cover}
+#wallPanel .wplist{max-height:520px;overflow:hidden;display:flex;flex-direction:column;gap:10px}
+#wallPanel .wprow{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:18px 26px;border-radius:18px;font-size:24px;background:rgba(127,127,127,.12);border:3px solid transparent;flex:none}
+#wallPanel .wprow small{font-size:18px;color:var(--muted);white-space:nowrap}
+#wallPanel .wprow span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#wallPanel .wprow.on{border-color:var(--accent)}
 #wall .scrim{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.36) 0%,rgba(0,0,0,0) 20%,rgba(0,0,0,0) 60%,rgba(0,0,0,.4) 100%)}
 header,nav#tiles,#voiceToast{--ink:#FFFFFF;--muted:rgba(255,255,255,.8);--divider:rgba(255,255,255,.24);--cloud-fill:rgba(255,255,255,.18);
   --chip-bg:rgba(16,20,28,.36);--chip-border:1px solid rgba(255,255,255,.24);--chip-shadow:0 8px 24px rgba(0,0,0,.18);
@@ -490,7 +496,7 @@ nav#tiles{z-index:45}
 </head>
 <body class="teal">
 <div id="stage">
-  <!-- Wallpapers (WALLPAPERS in the script) cross-fade slowly behind everything -->
+  <!-- The wallpaper (WALLPAPER in the script, or Settings -> Wallpaper from a USB stick) behind everything -->
   <div id="wall" aria-hidden="true"><div class="scrim"></div></div>
 
   <header>
@@ -608,10 +614,24 @@ nav#tiles{z-index:45}
           <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/></svg>
           <span>Names</span><small id="scNamesVal">My Home</small>
         </div>
+        <div class="short wide" id="scWall">
+          <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4.5" width="18" height="15" rx="2.5"/><path d="M3 16l5-5 4 4 3-3 6 6"/><circle cx="16" cy="8.5" r="1.5"/></svg>
+          <span>Wallpaper</span><small id="scWallVal">Original</small>
+        </div>
       </div>
       <!-- Pairing for the phone/laptop remote: each TV makes its own code (PairingCode.java). -->
       <div class="sec" style="margin-top:12px">Remote</div>
       <p class="pair" id="pairLine">Pairing code <b id="pairCode">—</b> · TV address <b id="pairAddr">—</b></p>
+    </div>
+  </div>
+
+  <!-- Wallpaper: pick a video or photo from a USB stick; it is copied onto the TV (WallpaperStore.java). -->
+  <div id="wallPanel" class="modal">
+    <div class="mcard">
+      <h2>Wallpaper</h2>
+      <p class="mhint">Put a video (MP4) or a photo (JPG, PNG) on a USB stick and plug it into the TV. Up/Down to choose &middot; OK to use it.</p>
+      <div class="wplist" id="wpList"></div>
+      <p class="mhint" id="wpMsg" style="margin-top:18px"></p>
     </div>
   </div>
 
@@ -701,7 +721,7 @@ nav#tiles{z-index:45}
     wifiScan: function () {}, wifiPermission: function () {}, openLocation: function () {}, wifiEnable: function () { return true; },
     wifiConnect: function () { return '{"ok":false,"why":"add"}'; }, wifiForget: function () {},
     usb: function () { return '{"devices":0,"storage":[]}'; },
-    openWifi: function () { console.log('wifi'); }, openStorage: function () { console.log('storage'); },
+    openWifi: function () { console.log('wifi'); }, openStorage: function () { console.log('storage'); }, wallpaper: function () { return 'null'; }, usbMedia: function () { return '{"drives":0,"files":[]}'; }, importWallpaper: function () {}, resetWallpaper: function () {},
     listen: function () { console.log('listen'); }, say: function (t) { console.log('say', t); }, stopListening: function () {}, finishListening: function () {},
     searchStore: function (q) { console.log('store', q); }, webSearch: function (q) { console.log('google', q); },
     getAlarm: function () { return '{"enabled":false,"hour":6,"minute":30,"days":127,"next":0}'; },
@@ -712,11 +732,10 @@ nav#tiles{z-index:45}
   // ---------- names (Settings -> Names) ----------
   var HOME_NAME = 'My Home', ASSIST = 'Max';
 
-  // ---------- wallpapers ----------
-  // Pictures in app/assets, shown full screen and cross-faded every WALL_SECONDS. Put your own photos (1920x1080 JPEG)
-  // next to index.html and list them here; one picture just stays.
-  var WALLPAPERS = ['wall1.jpg', 'wall2.jpg'];
-  var WALL_SECONDS = 30;
+  // ---------- wallpaper ----------
+  // One wallpaper in app/assets: a looping video (e.g. 'wall.mp4', 1920x1080 H.264, muted) or a picture (1920x1080
+  // JPEG). The family can replace it from a USB stick in Settings -> Wallpaper, no rebuild needed.
+  var WALLPAPER = 'wall1.jpg';
   try { HOME_NAME = localStorage.getItem('homeName') || HOME_NAME; ASSIST = localStorage.getItem('assistantName') || ASSIST; } catch (e) {}
 
   // ---------- location (Settings -> Location, or "set location to ...") ----------
@@ -961,22 +980,35 @@ nav#tiles{z-index:45}
     else TV.launch(a.pkg);
   }
 
-  // ---------- wallpaper: one 2.5 s opacity fade every WALL_SECONDS, then the screen is still ----------
-  var wallEl = document.getElementById('wall');
-  var walls = WALLPAPERS.map(function (src, i) {
-    var d = document.createElement('div');
-    d.className = 'wp' + (i === 0 ? ' on' : '');
-    d.style.backgroundImage = 'url(' + src + ')';
-    wallEl.insertBefore(d, wallEl.lastChild);
-    return d;
+  // ---------- wallpaper: one video or picture; the family's own (USB) wins over the bundled one ----------
+  var wallEl = document.getElementById('wall'), wallNow = null;
+  function isVideo(src) { return /\.(mp4|m4v|webm|mkv)(\?|$)/i.test(src); }
+  function showWall() {
+    var own = null;
+    try { own = JSON.parse((window.TV && TV.wallpaper && TV.wallpaper()) || 'null'); } catch (e) {}
+    var src = own && own.url ? own.url : WALLPAPER;
+    setText('scWallVal', own && own.name ? own.name : 'Original');
+    var el;
+    if (isVideo(src)) {
+      el = document.createElement('video');
+      el.muted = true; el.loop = true; el.autoplay = true; el.setAttribute('playsinline', '');
+      el.onerror = function () { if (src !== WALLPAPER) { TV.resetWallpaper(); showWall(); } };   // unplayable: back to the original
+      el.src = src;
+    } else {
+      el = document.createElement('div');
+      el.style.backgroundImage = 'url("' + src + '")';
+    }
+    el.className = 'wp';
+    wallEl.insertBefore(el, wallEl.lastChild);
+    var old = wallNow; wallNow = el;
+    requestAnimationFrame(function () { el.classList.add('on'); });
+    if (old) setTimeout(function () { if (old.pause) old.pause(); old.remove(); }, 2600);   // after the fade
+  }
+  showWall();
+  // A video plays only while the home screen is in front.
+  document.addEventListener('visibilitychange', function () {
+    if (wallNow && wallNow.pause) { if (document.hidden) wallNow.pause(); else wallNow.play().catch(function () {}); }
   });
-  var wallIdx = 0;
-  if (walls.length > 1) setInterval(function () {
-    if (document.hidden) return;              // nothing to paint while an app is in front
-    walls[wallIdx].classList.remove('on');
-    wallIdx = (wallIdx + 1) % walls.length;
-    walls[wallIdx].classList.add('on');
-  }, WALL_SECONDS * 1000);
 
   // ---------- focus / remote ----------
   var zone = 'tiles', ti = 0, hi = 0;
@@ -1058,9 +1090,10 @@ nav#tiles{z-index:45}
     { el: document.getElementById('tvSettings'), go: function () { closePrefs(); TV.openSettings(); } },
     { el: document.getElementById('scLoc'), go: function () { closePrefs(); openLoc(); } },
     { el: document.getElementById('scAlarm'), go: function () { closePrefs(); openAlarm(); } },
-    { el: document.getElementById('scNames'), go: function () { closePrefs(); openNames(); } }
+    { el: document.getElementById('scNames'), go: function () { closePrefs(); openNames(); } },
+    { el: document.getElementById('scWall'), go: function () { closePrefs(); openWallpaper(); } }
   ];
-  var PREF_ROWS = [[0, 1], [2, 3, 4], [5, 6, 7]];
+  var PREF_ROWS = [[0, 1], [2, 3, 4], [5, 6, 7, 8]];
   var pi = 0;
   function openPrefs() {
     zone = 'prefs'; pi = theme === 'teal' ? 0 : 1;
@@ -1291,6 +1324,57 @@ nav#tiles{z-index:45}
   }
   function closeNames() { nmInputs.forEach(function (i) { i.blur(); }); saveNames(); namePanel.classList.remove('open'); zone = 'tiles'; render(); }
 
+  // ---------- Settings -> Wallpaper (USB) ----------
+  var wallPanel = document.getElementById('wallPanel'), wpItems = [], wi = 0, wpBusy = false, wpReturn = false;
+  function wpSay(html) { document.getElementById('wpMsg').innerHTML = html; }
+  function openWallpaper() {
+    zone = 'wallpaper'; wi = 0; wpBusy = false;
+    wallPanel.classList.add('open');
+    loadWallpapers(); render();
+  }
+  function loadWallpapers() {
+    var d = {};
+    try { d = JSON.parse(TV.usbMedia() || '{}'); } catch (e) {}
+    wpItems = [{ label: 'Original wallpaper', sub: 'The one Chill TV came with', go: function () {
+      TV.resetWallpaper(); showWall(); wpSay('Back to the original wallpaper.');
+    } }];
+    (d.files || []).forEach(function (f) {
+      wpItems.push({ label: f.name, sub: (f.kind === 'video' ? 'Video' : 'Photo') + ' \u00b7 ' + f.mb + ' MB', go: function () {
+        wpBusy = true;
+        wpSay('<span class="wspin"></span>Copying ' + esc(f.name) + ' to the TV\u2026');
+        TV.importWallpaper(f.path);
+      } });
+    });
+    if (d.permission) wpSay('Choose \u201cAllow\u201d on the next screen so Chill TV can read the USB stick.');
+    else if (!d.drives) wpSay('No USB stick found. Plug one in with a video (MP4) or a photo (JPG, PNG).');
+    else if (!(d.files || []).length) wpSay('No videos or photos found on the USB stick (MP4, WEBM, MKV, JPG, PNG).');
+    else wpSay('');
+    wi = Math.min(wi, wpItems.length - 1);
+    renderWallpapers();
+  }
+  function renderWallpapers() {
+    var list = document.getElementById('wpList');
+    list.innerHTML = wpItems.map(function (it, i) {
+      return '<div class="wprow' + (i === wi ? ' on' : '') + '"><span>' + esc(it.label) + '</span><small>' + esc(it.sub) + '</small></div>';
+    }).join('');
+    var on = list.children[wi];
+    if (on) list.scrollTop = Math.max(0, on.offsetTop - list.offsetTop - 200);
+  }
+  function wallpaperKey(up, down, ok) {
+    if (wpBusy) return;   // one copy at a time
+    if (up || down) { wi = Math.max(0, Math.min(wpItems.length - 1, wi + (up ? -1 : 1))); renderWallpapers(); }
+    else if (ok && wpItems[wi]) wpItems[wi].go();
+  }
+  function closeWallpaper() { if (wpBusy) return; wallPanel.classList.remove('open'); zone = 'tiles'; render(); }
+  window.onWallpaperImported = function (err) {
+    wpBusy = false;
+    if (err) { wpSay(esc(err)); return; }
+    showWall();
+    wpSay('Done. You can take the USB stick out.');
+  };
+  // Android's question pauses Home, and onResume runs onHome (which closes panels): reopen after it when allowed.
+  window.onUsbPermission = function (ok) { wpReturn = !!ok && zone === 'wallpaper'; };
+
   // ---------- alarm ----------
   var alarm = { enabled: false, hour: 6, minute: 30, days: 127, next: 0 };
   var REPEATS = [{ label: 'Every day', days: 127 }, { label: 'Weekdays', days: 62 }, { label: 'Weekends', days: 65 }, { label: 'Once', days: 0 }];
@@ -1486,6 +1570,8 @@ nav#tiles{z-index:45}
       if (n.manual && r.why === 'add') { wMsg(esc(n.ssid) + ' is already saved on this TV. Switch to it in More Wi-Fi settings.'); return; }
       if (r.why === 'saved') { wAskPassword(n, 'Enter the password for ' + esc(n.ssid) + '.'); return; }
       if (r.why === 'type') { wMsg('This network needs a user name. Use More Wi-Fi settings.'); return; }
+      if (r.why === 'system') { wMsg('Android asks to save ' + esc(n.ssid) + ': choose Save, and the TV connects.'); return; }
+      if (r.why === 'settings') { wMsg('Finish joining ' + esc(n.ssid) + ' in Wi-Fi settings.'); return; }
       wMsg('Android didn’t let this home screen change ' + esc(n.ssid) + '. Use More Wi-Fi settings.');
       return;
     }
@@ -1592,6 +1678,7 @@ nav#tiles{z-index:45}
       else if (ok) okLoc();
       return;
     }
+    if (zone === 'wallpaper') { wallpaperKey(up, down, ok); return; }
     if (zone === 'names') {
       if (up || down) { nmInputs[ni].blur(); ni = up ? 0 : 1; renderNames(); }
       else if (ok) okNames();
@@ -1631,6 +1718,7 @@ nav#tiles{z-index:45}
     else if (zone === 'wx') closeWx();
     else if (zone === 'loc') closeLoc();
     else if (zone === 'names') closeNames();
+    else if (zone === 'wallpaper') closeWallpaper();
     else if (zone === 'alarm') closeAlarm();
     else if (zone === 'wifi') wifiBack();
     else { zone = 'tiles'; focusTile(0); }
@@ -1641,6 +1729,7 @@ nav#tiles{z-index:45}
     if (zone === 'wx') closeWx();
     if (zone === 'loc') closeLoc();
     if (zone === 'names') closeNames();
+    if (zone === 'wallpaper') { wpBusy = false; closeWallpaper(); }
     if (zone === 'alarm') closeAlarm();
     if (zone === 'wifi') closeWifiDrawer();
     orbHide();
@@ -1648,6 +1737,7 @@ nav#tiles{z-index:45}
     updateClock(); updateStatus(); loadAlarm();
     genieHome();
     if (wReturn) { wReturn = false; openWifiDrawer(); }
+    if (wpReturn) { wpReturn = false; openWallpaper(); }
   };
   window.onMenu = toggleTheme;
 

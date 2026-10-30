@@ -56,6 +56,7 @@ public class MainActivity extends Activity {
     private static final int REQ_VOICE = 41;
     private static final int REQ_ACCOUNT = 42;   // the G: Android's Google account chooser
     private WebView web;
+    private WallpaperStore wallpapers;
     private boolean pageReady;
     // Voice phrases waiting for onResume: the home reset there would otherwise close what the command opened.
     private JSONArray pendingVoice;
@@ -68,12 +69,14 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
+        wallpapers = new WallpaperStore(this);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
 
         web = new WebView(this);
         web.setBackgroundColor(0xFF1F4F52);
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
+        s.setAllowFileAccess(true);   // the family's own wallpaper lives in the app's files (off by default from API 30)
         s.setDomStorageEnabled(true);
         s.setUseWideViewPort(true);
         s.setLoadWithOverviewMode(true);
@@ -210,6 +213,10 @@ public class MainActivity extends Activity {
         super.onRequestPermissionsResult(code, perms, results);
         if (code == 9 && results.length > 0 && results[0] == PackageManager.PERMISSION_GRANTED) startVoice();
         if (code == 10) { WifiPanel.scan(this); js("window.onWifiChanged && window.onWifiChanged()"); }
+        if (code == 11) {
+            boolean ok = results.length > 0 && results[0] == PackageManager.PERMISSION_GRANTED;
+            js("window.onUsbPermission && window.onUsbPermission(" + ok + ")");
+        }
     }
 
     private void stopVoice() {
@@ -616,7 +623,9 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public boolean wifiEnable(boolean on) {
-            return WifiPanel.setEnabled(MainActivity.this, on);
+            if (WifiPanel.setEnabled(MainActivity.this, on)) return true;
+            openWifi();   // Android 10+ lets only the user switch Wi-Fi on: open its Wi-Fi settings
+            return false;
         }
 
         /** Join a network; the password is handed straight to Android and never logged. */
@@ -655,6 +664,44 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void openWifi() {
             open(new Intent(Settings.ACTION_WIFI_SETTINGS));
+        }
+
+        // ---- Settings -> Wallpaper: one video or picture, copied in from a USB stick (WallpaperStore) ----
+        @JavascriptInterface
+        public String usbMedia() {
+            // Android 13+ asks for videos and photos; older versions for storage.
+            final String[] need = Build.VERSION.SDK_INT >= 33
+                    ? new String[]{"android.permission.READ_MEDIA_VIDEO", "android.permission.READ_MEDIA_IMAGES"}
+                    : new String[]{Manifest.permission.READ_EXTERNAL_STORAGE};
+            if (Build.VERSION.SDK_INT >= 23 && checkSelfPermission(need[0]) != PackageManager.PERMISSION_GRANTED) {
+                runOnUiThread(new Runnable() { public void run() { requestPermissions(need, 11); } });
+                return "{\"permission\":true}";
+            }
+            try {
+                return new JSONObject().put("drives", WallpaperStore.removableRoots().length)
+                        .put("files", wallpapers.list()).toString();
+            } catch (Exception e) {
+                return "{\"drives\":0,\"files\":[]}";
+            }
+        }
+
+        @JavascriptInterface
+        public void importWallpaper(final String path) {
+            new Thread(new Runnable() { public void run() {
+                String err = wallpapers.importFrom(path);
+                js("window.onWallpaperImported && window.onWallpaperImported(" + JSONObject.quote(err == null ? "" : err) + ")");
+            } }).start();
+        }
+
+        @JavascriptInterface
+        public String wallpaper() {
+            try { JSONObject c = wallpapers.current(); return c == null ? "null" : c.toString(); }
+            catch (Exception e) { return "null"; }
+        }
+
+        @JavascriptInterface
+        public void resetWallpaper() {
+            wallpapers.reset();
         }
 
         @JavascriptInterface

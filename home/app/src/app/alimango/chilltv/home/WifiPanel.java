@@ -2,6 +2,7 @@ package app.alimango.chilltv.home;
 
 import android.Manifest;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.location.LocationManager;
 import android.net.ConnectivityManager;
@@ -10,11 +11,14 @@ import android.net.wifi.ScanResult;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
+import android.net.wifi.WifiNetworkSuggestion;
 import android.os.Build;
+import android.provider.Settings;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -22,8 +26,10 @@ import java.util.Map;
 /**
  * The Wi-Fi drawer: join a network from the home screen, password typed with the TV keyboard.
  *
- * Joining a network from an app only works for apps that target Android 9 (API 28) or lower: from API 29 on,
- * addNetwork / enableNetwork always fail. That is why build.ps1 targets 28. Android also lists nearby networks only
+ * build.ps1 targets API 34 (Google Play Protect blocks installs of apps built for old Android versions). From
+ * Android 10 an app can no longer add or switch networks itself (addNetwork / enableNetwork fail), so on those TVs
+ * the drawer hands the typed network to Android's own "Save this network?" dialog (Android 11+, ACTION_WIFI_ADD_NETWORKS)
+ * or opens Wi-Fi settings; on Android 9 and older it still joins directly. Android also lists nearby networks only
  * when the app holds the location permission and Location is on (a scan can reveal where the TV is).
  * With Location off (the privacy-friendly default: on many boxes Location only stays on together with Google's
  * Location Accuracy) the drawer joins networks by typed name + password, and switching between networks the TV
@@ -153,7 +159,7 @@ final class WifiPanel {
 
     /**
      * Join a network. Empty password on a saved network = switch to it with the saved password.
-     * {"ok":true,"id":n,"added":bool} or {"ok":false,"why":"saved"|"add"|"enable"|"type"}.
+     * {"ok":true,"id":n,"added":bool} or {"ok":false,"why":"saved"|"add"|"enable"|"type"|"system"|"settings"}.
      */
     static JSONObject connect(Context c, String ssid, String sec, String password) {
         JSONObject o = new JSONObject();
@@ -161,8 +167,13 @@ final class WifiPanel {
             WifiManager w = wm(c);
             o.put("ok", false);
             if ("eap".equals(sec)) { o.put("why", "type"); return o; }
-            Integer known = saved(w).get(ssid);
             boolean open = "open".equals(sec) || "owe".equals(sec);
+            if (Build.VERSION.SDK_INT >= 29) {
+                if (!open && (password == null || password.isEmpty())) { o.put("why", "saved"); return o; }
+                o.put("why", askSystem(c, ssid, sec, password) ? "system" : "settings");
+                return o;
+            }
+            Integer known = saved(w).get(ssid);
             if (known != null && (password == null || password.isEmpty())) {
                 // Android lets an app switch only to networks it saved itself; otherwise ask for the password.
                 if (w.enableNetwork(known, true)) { w.reconnect(); o.put("ok", true); o.put("id", known); o.put("added", false); }
@@ -196,6 +207,29 @@ final class WifiPanel {
             try { o.put("why", "add"); } catch (Exception ignored) { }
         }
         return o;
+    }
+
+    /** Android 11+: Android's own "Save this network?" dialog, then it connects. False = open Wi-Fi settings instead. */
+    private static boolean askSystem(Context c, String ssid, String sec, String password) {
+        Intent settings = new Intent(Settings.ACTION_WIFI_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        if (Build.VERSION.SDK_INT >= 30) {
+            try {
+                WifiNetworkSuggestion.Builder b = new WifiNetworkSuggestion.Builder().setSsid(ssid);
+                if ("sae".equals(sec)) b.setWpa3Passphrase(password);
+                else if ("owe".equals(sec)) b.setIsEnhancedOpen(true);
+                else if (!"open".equals(sec) && !"wep".equals(sec)) b.setWpa2Passphrase(password);
+                if (!"wep".equals(sec)) {   // WEP cannot be suggested; Wi-Fi settings handles it
+                    ArrayList<WifiNetworkSuggestion> list = new ArrayList<>();
+                    list.add(b.build());
+                    Intent add = new Intent(Settings.ACTION_WIFI_ADD_NETWORKS)
+                            .putParcelableArrayListExtra(Settings.EXTRA_WIFI_NETWORK_LIST, list)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    if (add.resolveActivity(c.getPackageManager()) != null) { c.startActivity(add); return true; }
+                }
+            } catch (Exception ignored) { }
+        }
+        try { c.startActivity(settings); } catch (Exception ignored) { }
+        return false;
     }
 
     /** Remove a network this app added (after a wrong password), so the TV falls back to its previous one. */
