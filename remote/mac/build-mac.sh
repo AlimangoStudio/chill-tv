@@ -1,19 +1,22 @@
 #!/bin/bash
 # Builds "Chill TV Remote.app" into ~/Applications and starts it. macOS 12 (Monterey) or newer.
 # Needs only the Xcode Command Line Tools (xcode-select --install). Run: bash build-mac.sh
-# Computer mode also needs scrcpy (brew install scrcpy).
+# Computer mode also needs scrcpy (brew install scrcpy); real key presses and typing need adb.
+# A renamed install: NAME="Pilar TV Remote" BUNDLE_ID=ph.pilar.tvremote APP=/path/to/X.app NO_OPEN=1 bash build-mac.sh
 set -euo pipefail
 cd "$(dirname "$0")"
-APP="$HOME/Applications/Chill TV Remote.app"
+NAME="${NAME:-Chill TV Remote}"
+BUNDLE_ID="${BUNDLE_ID:-app.alimango.chilltv.remote}"
+APP="${APP:-$HOME/Applications/$NAME.app}"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 swiftc -O -parse-as-library -target "$(uname -m)-apple-macos12" ChillRemote.swift -o "$APP/Contents/MacOS/ChillRemote"
 cp tv-computer-mode.sh "$APP/Contents/Resources/"
-cat > "$APP/Contents/Info.plist" <<'PLIST'
+cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
-  <key>CFBundleName</key><string>Chill TV Remote</string>
-  <key>CFBundleIdentifier</key><string>app.alimango.chilltv.remote</string>
+  <key>CFBundleName</key><string>$NAME</string>
+  <key>CFBundleIdentifier</key><string>$BUNDLE_ID</string>
   <key>CFBundleExecutable</key><string>ChillRemote</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>1.0</string>
@@ -30,4 +33,4 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 PLIST
 codesign --force --sign - "$APP"
 echo "Built: $APP"
-open "$APP"
+[ "${NO_OPEN:-}" = 1 ] || open "$APP"

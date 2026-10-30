@@ -6,6 +6,8 @@
 // command ("TV, open Netflix", "TV, pause", "TV, volume up"); only the command goes to the TV.
 // The TV address is optional: when the TV cannot be reached (another Wi-Fi, a new address from the router) the remote
 // finds it again on the local network (Finder below) and remembers the new address.
+// Arrows, OK and Back press real keys over the TV's network debugging when the TV allows this Mac, so they work in
+// every app (Netflix too); "Type on the TV" sends text the same way (AdbKeys below).
 // Build on the Mac: ./build-mac.sh   (needs only the Xcode Command Line Tools: xcode-select --install)
 import SwiftUI
 import AppKit
@@ -25,6 +27,9 @@ final class Settings: ObservableObject {
     }
     var configured: Bool { !key.isEmpty }   // no address: Finder looks for the TV
 }
+
+/// The name on the remote ("brand" setting, for a renamed install); "Chill TV" by default.
+let brand = UserDefaults.standard.string(forKey: "brand") ?? "Chill TV"
 
 // MARK: - Finding the TV on the local network
 
@@ -93,6 +98,107 @@ enum Finder {
     }
 }
 
+// MARK: - Real key presses over adb
+
+/// The launcher can only press keys inside its own screen. Over the TV's network debugging (the connection Computer
+/// mode uses) the remote presses real keys in whichever app is in front, Netflix included. One `adb shell` stays open
+/// while the remote is open, so a key takes about 0.1 s; it closes when the remote folds up. Without adb, or before the
+/// TV has allowed this Mac, keys go to the launcher as before.
+final class AdbKeys {
+    static let keycodes = ["up": 19, "down": 20, "left": 21, "right": 22, "ok": 23, "back": 4]
+    private let queue = DispatchQueue(label: "chilltv.adb")
+    private var shell: Process?
+    private var pipe: FileHandle?
+    private var target = ""
+    private var retryAfter = Date.distantPast   // after a failed connect, use the launcher a while instead of waiting on every key
+
+    /// adb from the "adbPath" setting, else Homebrew's. "adbHome" (optional) is the HOME that holds adb's key, so
+    /// several Mac accounts can share one key the TV has already allowed.
+    private static var adb: String? {
+        [UserDefaults.standard.string(forKey: "adbPath"), "/opt/homebrew/bin/adb", "/usr/local/bin/adb"]
+            .compactMap { $0 }.first { FileManager.default.isExecutableFile(atPath: $0) }
+    }
+
+    private static func process(_ args: [String]) -> Process? {
+        guard let adb = adb else { return nil }
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: adb)
+        p.arguments = args
+        if let home = UserDefaults.standard.string(forKey: "adbHome") {
+            var env = ProcessInfo.processInfo.environment; env["HOME"] = home; p.environment = env
+        }
+        p.standardOutput = FileHandle.nullDevice; p.standardError = FileHandle.nullDevice
+        return p
+    }
+
+    /// Runs adb and returns what it printed, or nil when it can't run or takes longer than `timeout` seconds.
+    private static func run(_ args: [String], output: Bool = true, timeout: TimeInterval = 6) -> String? {
+        guard let p = process(args) else { return nil }
+        let out = Pipe()
+        if output { p.standardOutput = out; p.standardError = out }
+        let done = DispatchSemaphore(value: 0)
+        p.terminationHandler = { _ in done.signal() }
+        do { try p.run() } catch { return nil }
+        if done.wait(timeout: .now() + timeout) == .timedOut { p.terminate(); return nil }
+        return output ? String(decoding: out.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self) : ""
+    }
+
+    /// Opens the shell to `host` unless it is already open. Runs on `queue`.
+    private func open(_ host: String) -> Bool {
+        if let s = shell, s.isRunning, target == host { return true }
+        close()
+        guard Date() >= retryAfter else { return false }
+        let serial = "\(host):5555"
+        // the adb server first, without capturing output: it keeps running and would hold a pipe open
+        guard AdbKeys.run(["start-server"], output: false) != nil else { retryAfter = Date().addingTimeInterval(20); return false }
+        _ = AdbKeys.run(["connect", serial])
+        guard AdbKeys.run(["-s", serial, "get-state"])?.trimmingCharacters(in: .whitespacesAndNewlines) == "device",
+              let p = AdbKeys.process(["-s", serial, "shell"]) else { retryAfter = Date().addingTimeInterval(20); return false }
+        let input = Pipe()
+        p.standardInput = input
+        do { try p.run() } catch { retryAfter = Date().addingTimeInterval(20); return false }
+        shell = p; pipe = input.fileHandleForWriting; target = host
+        return true
+    }
+
+    private func close() {
+        try? pipe?.close(); pipe = nil
+        if let s = shell, s.isRunning { s.terminate() }
+        shell = nil
+    }
+
+    /// Sends one shell command; a dropped connection gets one fresh shell.
+    private func write(_ line: String, host: String) -> Bool {
+        for _ in 0..<2 {
+            guard open(host), let pipe = pipe else { return false }
+            do { try pipe.write(contentsOf: Data((line + "\n").utf8)); return true } catch { close() }
+        }
+        return false
+    }
+
+    /// Presses `name` (up, down, left, right, ok, back); `done(false)` means adb couldn't, so the caller uses the launcher.
+    func press(_ name: String, host: String, done: @escaping (Bool) -> Void) {
+        guard let code = AdbKeys.keycodes[name] else { done(false); return }
+        queue.async {
+            let ok = self.write("input keyevent \(code)", host: host)
+            DispatchQueue.main.async { done(ok) }
+        }
+    }
+
+    /// Types `text` into the TV's focused text field, then presses Enter if asked. Plain ASCII only (`input text`).
+    func type(_ text: String, enter: Bool, host: String, done: @escaping (Bool) -> Void) {
+        let arg = text.replacingOccurrences(of: "'", with: "'\\''").replacingOccurrences(of: " ", with: "%s")
+        queue.async {
+            var ok = self.write("input text '\(arg)'", host: host)
+            if ok && enter { ok = self.write("input keyevent 66", host: host) }
+            DispatchQueue.main.async { done(ok) }
+        }
+    }
+
+    /// Closes the shell (the remote folded up), so nothing stays connected in the background.
+    func stop() { queue.async { self.close(); self.retryAfter = .distantPast } }
+}
+
 // MARK: - Talking to the TV
 
 struct TVStatus: Decodable { let ok: Bool; let volume: Int?; let max: Int?; let muted: Bool?; let music: Bool?; let note: String?; let kind: String? }
@@ -106,11 +212,20 @@ final class TV: ObservableObject {
     @Published var note = ""
     @Published var isHome = false            // Chill TV Home: no reel, idle or music
     let settings: Settings
+    let adb = AdbKeys()
     init(settings: Settings) { self.settings = settings }
 
-    func send(_ path: String, searched: Bool = false) {
+    func send(_ path: String, searched: Bool = false, launcher: Bool = false) {
         guard settings.configured else { note = "Right-click the circle → Set TV address"; return }
         if settings.host.isEmpty { find(then: path); return }
+        // Arrows, OK and Back: a real key press in whichever app is in front, when the TV allows this Mac (AdbKeys).
+        let keyPrefix = "/api/key?code="
+        if !launcher, path.hasPrefix(keyPrefix) {
+            adb.press(String(path.dropFirst(keyPrefix.count)), host: settings.host) { ok in
+                if ok { self.online = true } else { self.send(path, searched: searched, launcher: true) }
+            }
+            return
+        }
         let sep = path.contains("?") ? "&" : "?"
         let k = settings.key.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
         guard let url = URL(string: "http://\(settings.host):8765\(path)\(sep)k=\(k)") else { return }
@@ -137,6 +252,19 @@ final class TV: ObservableObject {
         }.resume()
     }
     func refresh() { send("/api/status") }
+
+    /// Types into the TV's focused text field (search, sign-in). Needs the same adb access as the keys.
+    func type(_ text: String, enter: Bool) {
+        guard settings.configured, !settings.host.isEmpty else { note = "Press any remote button first so the remote finds the TV."; return }
+        guard !text.isEmpty else { return }
+        guard text.unicodeScalars.allSatisfy({ $0.isASCII && $0.value >= 32 }) else {
+            note = "Typing works with plain letters, numbers and symbols only."; return
+        }
+        adb.type(text, enter: enter, host: settings.host) { ok in
+            self.note = ok ? "Typed on the TV."
+                : "Typing needs adb on this Mac and network debugging on the TV (choose \"Always allow\" on the TV)."
+        }
+    }
 
     /// Looks for the TV on the local network, saves its new address and repeats the request once.
     private func find(then path: String) {
@@ -379,11 +507,12 @@ struct RemoteView: View {
     @ObservedObject var tv: TV
     @ObservedObject var voice: Voice
     let collapse: () -> Void
+    let typeText: () -> Void
     var body: some View {
         VStack(spacing: 10) {
             HStack(spacing: 8) {
                 Circle().fill(tv.online == true ? teal : tv.online == false ? .red : .gray).frame(width: 9, height: 9)
-                Text("CHILL TV").font(.system(size: 12, weight: .bold)).kerning(1.5)
+                Text(brand.uppercased()).font(.system(size: 12, weight: .bold)).kerning(1.5)
                 Spacer()
                 Button(action: collapse) { Image(systemName: "minus").frame(width: 22, height: 22) }.buttonStyle(.plain)
             }.foregroundColor(.white)
@@ -407,8 +536,11 @@ struct RemoteView: View {
                 Key(label: "Disney+") { tv.send("/api/open?app=dis") }
                 Key(label: "Play") { tv.send("/api/open?app=play") }
             }
-            Key(label: tv.computerOn ? "⏹ Stop computer mode" : "🖥 Computer mode (keyboard & mouse)", tint: tv.computerOn ? gold : nil) { tv.computerMode() }
-            Key(label: voice.on ? "🎙 Listening: say \"TV …\"" : "🎙 Voice (Mac mic)", tint: voice.on ? gold : nil) { voice.toggle() }
+            Group {   // one view: Swift 5.7 (macOS 12 tools) takes at most 10 per stack
+                Key(label: "⌨ Type on the TV", action: typeText)
+                Key(label: tv.computerOn ? "⏹ Stop computer mode" : "🖥 Computer mode (keyboard & mouse)", tint: tv.computerOn ? gold : nil) { tv.computerMode() }
+                Key(label: voice.on ? "🎙 Listening: say \"TV …\"" : "🎙 Voice (Mac mic)", tint: voice.on ? gold : nil) { voice.toggle() }
+            }
             if !tv.isHome { HStack(spacing: 6) {
                 Key(label: "▶ Reel") { tv.send("/api/reel") }
                 Key(label: "Idle") { tv.send("/api/showcase") }
@@ -442,7 +574,7 @@ struct DotView: View {
             Circle().fill(panelBG)
             // gold ring: Voice is listening, even folded up
             Circle().stroke(tv.online == false ? Color.red : voice.on ? gold : teal, lineWidth: 3).padding(2)
-            Text("C").font(.system(size: 20, weight: .semibold, design: .serif)).foregroundColor(gold)
+            Text(String(brand.prefix(1))).font(.system(size: 20, weight: .semibold, design: .serif)).foregroundColor(gold)
         }.frame(width: 48, height: 48)
     }
 }
@@ -486,7 +618,7 @@ final class Dock: NSObject, NSWindowDelegate {
         let v = NSHostingView(rootView: DotView(tv: tv, voice: voice).onTapGesture { [weak self] in self?.expand() }
             .contextMenu {
                 Button("Set TV address and key…") { [weak self] in self?.askSettings() }
-                Button("Quit Chill TV Remote") { NSApp.terminate(nil) }
+                Button("Quit \(brand) Remote") { NSApp.terminate(nil) }
             })
         resize(to: NSSize(width: 48, height: 48), anchorTop: false)
         panel.contentView = v
@@ -494,7 +626,8 @@ final class Dock: NSObject, NSWindowDelegate {
 
     func expand() {
         expanded = true
-        let v = NSHostingView(rootView: RemoteView(tv: tv, voice: voice, collapse: { [weak self] in self?.collapse() })
+        let v = NSHostingView(rootView: RemoteView(tv: tv, voice: voice, collapse: { [weak self] in self?.collapse() },
+                                                   typeText: { [weak self] in self?.askText() })
             .onHover { [weak self] _ in self?.poke() })
         let size = v.fittingSize
         resize(to: size, anchorTop: false)
@@ -516,6 +649,7 @@ final class Dock: NSObject, NSWindowDelegate {
         expanded = false
         idleTimer?.invalidate(); idleTimer = nil
         if let m = outsideMonitor { NSEvent.removeMonitor(m); outsideMonitor = nil }
+        tv.adb.stop()
         showDot()
     }
 
@@ -533,9 +667,24 @@ final class Dock: NSObject, NSWindowDelegate {
         panel.setFrame(NSRect(origin: origin, size: size), display: true)
     }
 
+    /// Type on the TV: a text box on the Mac; the text goes into the field that has focus on the TV.
+    func askText() {
+        poke()
+        let a = NSAlert()
+        a.messageText = "Type on the TV"
+        a.informativeText = "Select the text field on the TV first (search, sign-in), then type here. Return types it and presses Enter."
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24)); field.placeholderString = "Text for the TV"
+        a.accessoryView = field
+        a.addButton(withTitle: "Type + Enter"); a.addButton(withTitle: "Type"); a.addButton(withTitle: "Cancel")
+        a.window.initialFirstResponder = field
+        NSApp.activate(ignoringOtherApps: true)
+        let r = a.runModal()
+        if r == .alertFirstButtonReturn || r == .alertSecondButtonReturn { tv.type(field.stringValue, enter: r == .alertFirstButtonReturn) }
+    }
+
     func askSettings() {
         let a = NSAlert()
-        a.messageText = "Chill TV Remote"
+        a.messageText = "\(brand) Remote"
         a.informativeText = "The pairing code shown in Chill TV on the TV. The TV address is optional: the remote finds the TV by itself on the same Wi-Fi."
         let host = NSTextField(frame: NSRect(x: 0, y: 30, width: 260, height: 24)); host.placeholderString = "TV address (optional)"; host.stringValue = settings.host
         let key = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24)); key.placeholderString = "Pairing code"; key.stringValue = settings.key
@@ -556,6 +705,7 @@ struct ChillRemoteApp {
     static func main() {
         let app = NSApplication.shared
         app.setActivationPolicy(.accessory)      // no Dock icon or menu bar: just the floating circle
+        signal(SIGPIPE, SIG_IGN)                 // a dropped adb shell must not end the remote (AdbKeys reconnects)
         dock.start()
         app.run()
     }

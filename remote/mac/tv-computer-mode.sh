@@ -12,5 +12,6 @@ case "$STATE" in
   *unauthorized*) exit 2 ;;
   *) exit 3 ;;
 esac
-# sdk mouse keeps the pointer free to leave the window; uhid keyboard types into any app.
-exec scrcpy -s "$HOST:5555" --keyboard=uhid --mouse=sdk --no-audio --max-size 1280 --max-fps 30 --window-title "Chill TV"
+# sdk mouse keeps the pointer free to leave the window; the sdk keyboard types into any app (uhid sent no keys
+# on a Mi Box S with Android 12, issue #2).
+exec scrcpy -s "$HOST:5555" --keyboard=sdk --mouse=sdk --no-audio --max-size 1280 --max-fps 30 --window-title "Chill TV"
