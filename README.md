@@ -109,6 +109,7 @@ Edit [`showcase/app/assets/config.js`](showcase/app/assets/config.js), put your 
 Both apps run a small remote server on the TV (port 8765). Every request needs a secret key.
 - **The key**: the first build makes a random key and saves it in `remote-key.txt` (in `home/` or `showcase/`). The key in the source stays `CHANGE-ME`. A TV built with that placeholder refuses every remote request.
 - **Browser**: open `http://<TV-IP>:8765/?k=<key>` on any phone or computer for a simple remote page.
+- **Keep the TV's address (recommended)**: in your router's admin page, reserve the TV's current address for its Wi-Fi MAC address (routers call it DHCP reservation, static lease or address binding). The TV shows both in Settings › Network & Internet › your Wi-Fi, or in About › Status. A saved address then never goes stale, a browser bookmark keeps working, and a remote or TV app without the finder (older builds) keeps working after a router restart. The remotes' finder stays the fallback for another Wi-Fi.
 - **Windows**: run `remote\windows\build.cmd`. It uses the C# compiler built into Windows, so there's nothing to install. Run `ChillRemote.exe`, then enter the TV address and key. The key is stored encrypted for your Windows user only.
 - **Mac**: run `bash remote/mac/build-mac.sh` (macOS 12 or newer, Xcode Command Line Tools).
 - **Computer mode** needs [scrcpy](https://github.com/Genymobile/scrcpy):
